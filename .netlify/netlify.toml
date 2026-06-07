@@ -1,0 +1,34 @@
+functionsDirectory = "/Users/wangjiayi85/Desktop/demos/echo-cave-deploy/netlify/functions"
+functionsDirectoryOrigin = "config-v1"
+headersOrigin = "config"
+plugins = []
+redirects = []
+
+[build]
+publish = "/Users/wangjiayi85/Desktop/demos/echo-cave-deploy"
+publishOrigin = "config"
+functions = "/Users/wangjiayi85/Desktop/demos/echo-cave-deploy/netlify/functions"
+
+[build.environment]
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[functions]
+
+[functions."*"]
+
+[[headers]]
+for = "/*"
+
+[headers.values]
+Access-Control-Allow-Origin = "*"
