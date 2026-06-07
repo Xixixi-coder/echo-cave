@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>回声洞穴 Echo Cave v9 — App Prototype</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=LXGW+WenKai:wght@300;400&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#faf6f1;
+  --bg-warm:#f5ebe0;
+  --card:#fff;
+  --text:#2d2a26;
+  --text-sub:#8a8278;
+  --text-light:#b5ae a3;
+  --gold:#c4a574;
+  --gold-warm:#d4a96a;
+  --peach:#e8b89d;
+  --rose:#c87e6e;
+  --gentle:#9b8ec4;
+  --accent:#c75b5b;
+  --blue:#7b9eb8;
+  --green:#8bab7e;
+  --cream:#f0e6d2;
+  --shadow:0 2px 16px rgba(0,0,0,0.06);
+  --shadow-lg:0 8px 32px rgba(0,0,0,0.08);
+  --radius:20px;
+  --radius-sm:12px;
+  --font-serif:'Noto Serif SC',serif;
+  --font-sans:'Noto Sans SC',sans-serif;
+  --font-wen:'LXGW WenKai',serif;
+  --safe-top:env(safe-area-inset-top,44px);
+  --safe-bottom:env(safe-area-inset-bottom,20px);
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-family:var(--font-sans);color:var(--text);-webkit-tap-highlight-color:transparent;}
+
+/* === PHONE FRAME === */
+.app{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg);}
+
+/* === STATUS BAR SPACER === */
+.status-bar{height:var(--safe-top);flex-shrink:0;}
+
+/* === SCREENS === */
+.screen{flex:1;display:none;flex-direction:column;overflow:hidden;position:relative;}
+.screen.active{display:flex;}
+
+/* === TAB BAR === */
+.tab-bar{
+  display:flex;justify-content:space-around;align-items:center;
+  padding:8px 0 calc(8px + var(--safe-bottom));
+  background:rgba(250,246,241,0.92);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-top:1px solid rgba(0,0,0,0.04);
+  flex-shrink:0;
+}
+.tab{
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:4px 16px;cursor:pointer;transition:all .2s;
+}
+.tab-icon{font-size:22px;opacity:.35;transition:all .2s;}
+.tab-label{font-size:10px;color:var(--text-sub);opacity:.5;transition:all .2s;}
+.tab.active .tab-icon{opacity:1;}
+.tab.active .tab-label{opacity:1;color:var(--gold-warm);font-weight:500;}
+.tab.active::after{content:'';display:block;width:4px;height:4px;border-radius:50%;background:var(--gold-warm);margin-top:1px;}
+
+/* ================================================
+   HOME SCREEN — 今日
+   ================================================ */
+.home-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 20px 20px;}
+
+/* Header */
+.home-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;padding-top:8px;}
+.home-greeting{font-family:var(--font-serif);font-size:28px;font-weight:700;line-height:1.3;}
+.home-greeting em{font-style:italic;font-weight:200;color:var(--gold-warm);}
+.home-date{font-size:11px;color:var(--text-sub);letter-spacing:1px;}
+
+/* Today card — like meditation app */
+.today-card{
+  background:linear-gradient(135deg,#f5ebe0 0%,#edd5bf 50%,#e8c9ab 100%);
+  border-radius:var(--radius);padding:28px 24px;margin-bottom:20px;
+  position:relative;overflow:hidden;
+}
+.today-card::before{
+  content:'';position:absolute;top:-30px;right:-30px;width:120px;height:120px;
+  border-radius:50%;background:rgba(255,255,255,0.15);
+}
+.today-card::after{
+  content:'';position:absolute;bottom:-20px;left:30px;width:80px;height:80px;
+  border-radius:50%;background:rgba(255,255,255,0.08);
+}
+.today-tag{
+  display:inline-block;font-size:10px;letter-spacing:1.5px;
+  color:var(--rose);font-weight:500;margin-bottom:12px;
+}
+.today-tag::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--rose);margin-right:6px;vertical-align:middle;}
+.today-title{font-family:var(--font-serif);font-size:24px;font-weight:700;line-height:1.4;margin-bottom:8px;}
+.today-title em{font-style:italic;font-weight:200;}
+.today-desc{font-size:13px;color:rgba(45,42,38,0.6);line-height:1.7;font-family:var(--font-wen);}
+
+/* Streak card */
+.streak-card{
+  background:var(--card);border-radius:var(--radius);padding:20px 24px;
+  box-shadow:var(--shadow);margin-bottom:20px;
+}
+.streak-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;}
+.streak-label{font-size:11px;letter-spacing:1px;color:var(--text-sub);text-transform:uppercase;}
+.streak-num{font-family:var(--font-serif);font-size:36px;font-weight:700;color:var(--gold-warm);}
+.streak-sub{font-size:12px;color:var(--text-sub);font-family:var(--font-wen);}
+.streak-dots{display:flex;gap:8px;margin-top:12px;justify-content:center;}
+.streak-dot{
+  width:28px;height:28px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;color:var(--text-sub);
+  background:rgba(196,165,116,0.08);transition:all .3s;
+}
+.streak-dot.filled{background:var(--gold-warm);color:#fff;}
+.streak-dot.today{border:2px solid var(--gold-warm);background:rgba(196,165,116,0.15);}
+
+/* Quick actions */
+.quick-section{margin-bottom:20px;}
+.quick-title{font-size:13px;font-weight:500;margin-bottom:12px;color:var(--text-sub);}
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.quick-card{
+  background:var(--card);border-radius:16px;padding:20px 16px;
+  box-shadow:var(--shadow);cursor:pointer;transition:all .2s;
+}
+.quick-card:active{transform:scale(.97);}
+.quick-card-icon{font-size:28px;margin-bottom:10px;}
+.quick-card-title{font-family:var(--font-serif);font-size:15px;font-weight:600;margin-bottom:4px;}
+.quick-card-desc{font-size:11px;color:var(--text-sub);line-height:1.5;}
+
+/* ================================================
+   ASK SCREEN — 问她
+   ================================================ */
+.ask-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 20px;}
+.ask-top{text-align:center;padding:20px 0 16px;}
+.ask-title{font-family:var(--font-serif);font-size:22px;font-weight:700;margin-bottom:4px;}
+.ask-sub{font-size:12px;color:var(--text-sub);font-family:var(--font-wen);}
+
+/* Emotion dots — OH Cards style */
+.emotion-picker{display:flex;justify-content:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;padding:0 10px;}
+.emotion-dot{
+  width:36px;height:36px;border-radius:50%;cursor:pointer;
+  transition:all .3s;border:2.5px solid transparent;position:relative;
+}
+.emotion-dot.selected{border-color:var(--text);transform:scale(1.15);}
+.emotion-dot::after{
+  content:attr(data-label);position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);
+  font-size:9px;color:var(--text-sub);white-space:nowrap;opacity:0;transition:opacity .2s;
+}
+.emotion-dot.selected::after{opacity:1;}
+
+/* Voice area */
+.ask-voice-area{display:flex;flex-direction:column;align-items:center;margin:24px 0;}
+.ask-voice-btn{
+  width:88px;height:88px;border-radius:50%;
+  background:linear-gradient(135deg,var(--cream) 0%,var(--peach) 100%);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 20px rgba(200,160,120,0.2);
+  transition:all .3s;position:relative;cursor:pointer;
+}
+.ask-voice-btn::before{
+  content:'';position:absolute;inset:-6px;border-radius:50%;
+  border:1.5px dashed rgba(196,165,116,0.3);
+  animation:spinSlow 12s linear infinite;
+}
+@keyframes spinSlow{to{transform:rotate(360deg)}}
+.ask-voice-btn.recording{
+  background:linear-gradient(135deg,#e8b89d,#c75b5b);
+  box-shadow:0 4px 30px rgba(199,91,91,0.25);
+  animation:recPulse 1.5s ease-in-out infinite;
+}
+@keyframes recPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.ask-voice-icon{font-size:32px;}
+.ask-voice-hint{margin-top:14px;font-size:12px;color:var(--text-sub);font-family:var(--font-wen);}
+
+/* Text input */
+.ask-input-area{
+  display:flex;align-items:center;gap:10px;padding:6px 6px 6px 18px;
+  background:var(--card);border-radius:28px;box-shadow:var(--shadow);
+  margin:0 0 16px;
+}
+.ask-input{flex:1;border:none;background:transparent;font-size:15px;color:var(--text);font-family:var(--font-sans);outline:none;padding:10px 0;}
+.ask-input::placeholder{color:rgba(0,0,0,0.2);}
+.ask-send{
+  width:38px;height:38px;border-radius:50%;border:none;
+  background:linear-gradient(135deg,var(--gold-warm),var(--peach));
+  color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .2s;
+}
+.ask-send:active{transform:scale(.9);}
+
+/* Guide pills */
+.guide-pills{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-bottom:20px;}
+.guide-pill{
+  padding:8px 18px;border-radius:20px;
+  background:rgba(196,165,116,0.08);
+  color:var(--text-sub);font-size:13px;font-family:var(--font-wen);
+  cursor:pointer;transition:all .2s;border:1px solid transparent;
+}
+.guide-pill:active{background:rgba(196,165,116,0.2);border-color:var(--gold);color:var(--text);}
+
+/* ================================================
+   STORY SCREEN — 她的故事 (card-based, overlapping)
+   ================================================ */
+.story-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 20px 20px;}
+.story-top-nav{display:flex;justify-content:space-between;align-items:center;padding:8px 0 16px;}
+.story-back{font-size:13px;color:var(--text-sub);cursor:pointer;padding:8px;}
+.story-share{font-size:13px;color:var(--gold-warm);cursor:pointer;padding:8px;}
+
+/* Overlapping story cards — like Post Post */
+.story-cards-stack{position:relative;margin-bottom:24px;min-height:200px;}
+.story-card-bg{
+  position:absolute;top:12px;left:12px;right:-4px;bottom:-8px;
+  background:var(--cream);border-radius:var(--radius);
+  transform:rotate(2deg);box-shadow:var(--shadow);
+}
+.story-card-main{
+  position:relative;background:var(--card);border-radius:var(--radius);
+  padding:28px 24px;box-shadow:var(--shadow-lg);
+  transform:rotate(-1deg);
+}
+.story-her-name{font-family:var(--font-serif);font-size:22px;font-weight:700;margin-bottom:2px;}
+.story-her-year{font-size:12px;color:var(--text-sub);margin-bottom:16px;letter-spacing:1px;}
+.story-quote-text{
+  font-family:var(--font-serif);font-size:18px;font-weight:600;
+  line-height:1.8;color:var(--rose);font-style:italic;
+}
+
+/* Narrative */
+.story-narrative-section{margin-bottom:20px;}
+.narrative-part{
+  font-family:var(--font-wen);font-size:15px;color:rgba(45,42,38,0.75);
+  line-height:2;margin-bottom:14px;
+  opacity:0;transform:translateY(10px);
+  transition:all .8s cubic-bezier(.25,.46,.45,.94);
+}
+.narrative-part.visible{opacity:1;transform:translateY(0);}
+.narrative-part:first-child{color:var(--gentle);font-style:italic;}
+
+/* Back to you — receipt style */
+.back-to-you-card{
+  background:var(--bg-warm);border-radius:16px;padding:20px 20px 20px 24px;
+  border-left:4px solid var(--gentle);margin-bottom:20px;
+  opacity:0;transform:translateY(10px);transition:all .8s;
+}
+.back-to-you-card.visible{opacity:1;transform:translateY(0);}
+.back-to-you-label{font-size:10px;letter-spacing:2px;color:var(--gentle);margin-bottom:8px;text-transform:uppercase;}
+.back-to-you-text{font-family:var(--font-wen);font-size:15px;color:var(--text);line-height:1.9;font-style:italic;}
+
+/* Story actions */
+.story-btn-row{display:flex;gap:12px;}
+.story-btn{
+  flex:1;padding:14px;border-radius:16px;text-align:center;
+  font-size:14px;font-family:var(--font-wen);cursor:pointer;transition:all .2s;
+}
+.story-btn:active{transform:scale(.96);}
+.story-btn.outline{background:var(--card);border:1px solid rgba(0,0,0,0.06);color:var(--text-sub);box-shadow:var(--shadow);}
+.story-btn.filled{background:linear-gradient(135deg,var(--gold-warm),var(--peach));color:#fff;box-shadow:0 4px 16px rgba(200,160,120,0.25);}
+
+/* ================================================
+   CAVE SCREEN — 我的洞穴
+   ================================================ */
+.cave-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 20px 20px;}
+.cave-top{text-align:center;padding:16px 0 24px;}
+.cave-title{font-family:var(--font-serif);font-size:26px;font-weight:700;}
+.cave-sub{font-size:12px;color:var(--text-sub);margin-top:4px;font-family:var(--font-wen);}
+
+/* Stats row */
+.cave-stats-row{display:flex;gap:12px;margin-bottom:24px;}
+.cave-stat-card{
+  flex:1;background:var(--card);border-radius:16px;padding:16px;
+  text-align:center;box-shadow:var(--shadow);
+}
+.cave-stat-num{font-family:var(--font-serif);font-size:28px;font-weight:700;color:var(--gold-warm);}
+.cave-stat-label{font-size:10px;color:var(--text-sub);margin-top:4px;letter-spacing:1px;}
+
+/* Entry list */
+.cave-section-title{font-size:12px;letter-spacing:2px;color:var(--text-sub);margin-bottom:12px;}
+.cave-entry-card{
+  background:var(--card);border-radius:16px;padding:16px 18px;
+  box-shadow:var(--shadow);margin-bottom:10px;
+}
+.cave-entry-input{font-size:14px;color:var(--text);margin-bottom:6px;font-family:var(--font-wen);}
+.cave-entry-resp{font-size:12px;color:var(--gentle);font-style:italic;line-height:1.6;}
+.cave-entry-meta{display:flex;justify-content:space-between;margin-top:8px;}
+.cave-entry-name{font-size:10px;color:var(--gold-warm);font-weight:500;}
+.cave-entry-time{font-size:10px;color:rgba(0,0,0,0.15);}
+
+/* ================================================
+   POSTER OVERLAY
+   ================================================ */
+#poster-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.6);backdrop-filter:blur(20px);display:none;align-items:center;justify-content:center;flex-direction:column;padding:20px;}
+#poster-overlay.active{display:flex;}
+#poster-overlay img{max-width:280px;border-radius:16px;box-shadow:var(--shadow-lg);}
+.poster-save-btn{margin-top:20px;padding:12px 32px;border-radius:24px;background:var(--card);color:var(--text);font-size:14px;box-shadow:var(--shadow);cursor:pointer;}
+.poster-close-btn{margin-top:14px;font-size:12px;color:rgba(255,255,255,0.5);cursor:pointer;}
+#poster-canvas{display:none;}
+
+/* === RIPPLE CANVAS === */
+canvas#ripple-layer{position:fixed;inset:0;z-index:100;pointer-events:none;}
+</style>
+</head>
+<body>
+
+<canvas id="ripple-layer"></canvas>
+
+<div class="app">
+  <div class="status-bar"></div>
+
+  <!-- ====== HOME ====== -->
+  <div class="screen active" id="screen-home">
+    <div class="home-scroll">
+      <div class="home-header">
+        <div>
+          <div class="home-greeting">在洞穴里，<br>找到 <em>她的回声。</em></div>
+        </div>
+        <div class="home-date" id="home-date"></div>
+      </div>
+
+      <div class="today-card" onclick="switchTab('ask')">
+        <div class="today-tag">TODAY</div>
+        <div class="today-title">问她一个 <em>问题。</em></div>
+        <div class="today-desc">你的困惑，她在一百年前就感受过。<br>按住说话，或者打字问她。</div>
+      </div>
+
+      <div class="streak-card">
+        <div class="streak-header">
+          <div><div class="streak-label">洞穴足迹</div><div class="streak-sub" id="streak-sub"></div></div>
+          <div class="streak-num" id="streak-num">0</div>
+        </div>
+        <div class="streak-dots" id="streak-dots"></div>
+      </div>
+
+      <div class="quick-section">
+        <div class="quick-title">探索</div>
+        <div class="quick-grid">
+          <div class="quick-card" onclick="switchTab('ask')">
+            <div class="quick-card-icon">🕯️</div>
+            <div class="quick-card-title">问她</div>
+            <div class="quick-card-desc">说出你的困惑，让涟漪找到她</div>
+          </div>
+          <div class="quick-card" onclick="switchTab('cave')">
+            <div class="quick-card-icon">🌌</div>
+            <div class="quick-card-title">我的洞穴</div>
+            <div class="quick-card-desc">你曾说过的话，她的每一次回应</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== ASK ====== -->
+  <div class="screen" id="screen-ask">
+    <div class="ask-scroll">
+      <div class="ask-top">
+        <div class="ask-title">问她</div>
+        <div class="ask-sub">选择你此刻的情绪色彩</div>
+      </div>
+
+      <div class="emotion-picker" id="emotion-picker">
+        <div class="emotion-dot" style="background:#c75b5b" data-label="愤怒" data-idx="0" onclick="pickEmotion(this)"></div>
+        <div class="emotion-dot" style="background:#7b9eb8" data-label="悲伤" data-idx="1" onclick="pickEmotion(this)"></div>
+        <div class="emotion-dot" style="background:#d4a96a" data-label="希望" data-idx="2" onclick="pickEmotion(this)"></div>
+        <div class="emotion-dot" style="background:#e8b89d" data-label="爱" data-idx="3" onclick="pickEmotion(this)"></div>
+        <div class="emotion-dot" style="background:#9b8ec4" data-label="迷茫" data-idx="4" onclick="pickEmotion(this)"></div>
+        <div class="emotion-dot" style="background:#c87e6e" data-label="反抗" data-idx="5" onclick="pickEmotion(this)"></div>
+        <div class="emotion-dot" style="background:#8bab7e" data-label="自由" data-idx="6" onclick="pickEmotion(this)"></div>
+        <div class="emotion-dot" style="background:#b5aea3" data-label="疲惫" data-idx="7" onclick="pickEmotion(this)"></div>
+      </div>
+
+      <div class="ask-voice-area">
+        <div class="ask-voice-btn" id="voice-btn" ontouchstart="startVoice(event)" ontouchend="stopVoice(event)" onmousedown="startVoice(event)" onmouseup="stopVoice(event)">
+          <span class="ask-voice-icon" id="voice-icon">🎙️</span>
+        </div>
+        <div class="ask-voice-hint" id="voice-hint">按住说话，让她听见</div>
+      </div>
+
+      <div class="ask-input-area">
+        <input class="ask-input" id="text-input" type="text" placeholder="或者打字问她..." onkeydown="if(event.key==='Enter')sendText()">
+        <button class="ask-send" onclick="sendText()">↑</button>
+      </div>
+
+      <div class="guide-pills" id="guide-pills"></div>
+    </div>
+  </div>
+
+  <!-- ====== STORY ====== -->
+  <div class="screen" id="screen-story">
+    <div class="story-scroll">
+      <div class="story-top-nav">
+        <div class="story-back" onclick="switchTab('ask')">← 返回</div>
+        <div class="story-share" onclick="generatePoster()">分享</div>
+      </div>
+
+      <div class="story-cards-stack">
+        <div class="story-card-bg"></div>
+        <div class="story-card-main">
+          <div class="story-her-name" id="s-name"></div>
+          <div class="story-her-year" id="s-year"></div>
+          <div class="story-quote-text" id="s-quote"></div>
+        </div>
+      </div>
+
+      <div class="story-narrative-section" id="s-narrative"></div>
+
+      <div class="back-to-you-card" id="s-bty-card">
+        <div class="back-to-you-label">回到你</div>
+        <div class="back-to-you-text" id="s-bty"></div>
+      </div>
+
+      <div class="story-btn-row">
+        <div class="story-btn outline" onclick="switchTab('ask')">继续问她</div>
+        <div class="story-btn filled" onclick="generatePoster()">生成海报</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== CAVE ====== -->
+  <div class="screen" id="screen-cave">
+    <div class="cave-scroll">
+      <div class="cave-top">
+        <div class="cave-title">我的洞穴</div>
+        <div class="cave-sub">每一次诉说，都被洞穴记住</div>
+      </div>
+
+      <div class="cave-stats-row" id="cave-stats"></div>
+      <div id="cave-entries"></div>
+    </div>
+  </div>
+
+  <!-- TAB BAR -->
+  <div class="tab-bar">
+    <div class="tab active" data-screen="home" onclick="switchTab('home')">
+      <div class="tab-icon">🏠</div><div class="tab-label">今日</div>
+    </div>
+    <div class="tab" data-screen="ask" onclick="switchTab('ask')">
+      <div class="tab-icon">🕯️</div><div class="tab-label">问她</div>
+    </div>
+    <div class="tab" data-screen="cave" onclick="switchTab('cave')">
+      <div class="tab-icon">🌌</div><div class="tab-label">洞穴</div>
+    </div>
+    <div class="tab" data-screen="me" onclick="switchTab('home')">
+      <div class="tab-icon">👤</div><div class="tab-label">我的</div>
+    </div>
+  </div>
+</div>
+
+<!-- POSTER -->
+<div id="poster-overlay">
+  <img id="poster-img" src="">
+  <div class="poster-save-btn" onclick="savePoster()">保存图片</div>
+  <div class="poster-close-btn" onclick="closePoster()">关闭</div>
+</div>
+<canvas id="poster-canvas" width="540" height="960"></canvas>
+
+<script>
+// ============================================================
+//  STORIES
+// ============================================================
+const stories=[{id:"s001",her:{name:"林徽因",year:1924,region:"中国",quote:"如果他们能看到我画的图，就不会说'不适合'了。"},narrative:{opening:"你提到的这种「同样努力，不同结果」的感受……",struggle:"1924年，宾夕法尼亚大学建筑系不收女生。林徽因以优等成绩入学，却只能注册在美术系。",process:"她没有接受这个「不适合」。每天旁听建筑课，作业比正式学生交得还多。教授看到她的图纸时沉默了很久。",breakthrough:"两年后，她以旁听生身份成为建筑系助教。后来回到中国，参与设计了人民英雄纪念碑。",legacy:"她证明了「不适合」三个字，可以被一张又一张图纸覆盖。",backToYou:"你的不甘，她在一百年前就感受过。它不是矫情，是清醒。"},emotionVector:[.3,.4,.3,.1,.5,.5],keywords:["考试","努力","机会","不适合","建筑","学习","不公平","男生"]},{id:"s002",her:{name:"张桂梅",year:2008,region:"中国",quote:"我们生来就是高山而非溪流。"},narrative:{opening:"你说的那种「想改变但没有资源」的感觉……",struggle:"2008年，华坪女子高中创办时只有一栋教学楼，连围墙都没有。",process:"张桂梅每天五点起床，挨家挨户劝说家长让女儿上学。被拒绝了无数次。",breakthrough:"十五年后，这所学校送了2000多个女孩进入大学。",legacy:"她用一个人的意志，撬动了一座山的命运。",backToYou:"你觉得自己改变不了什么？她当年也是从「一个人」开始的。"},emotionVector:[.1,.2,.8,.3,.1,.5],keywords:["改变","资源","教育","坚持","女孩","希望","一个人"]},{id:"s003",her:{name:"伍尔夫",year:1929,region:"英国",quote:"一个女人如果要写小说，她必须有钱，还要有一间自己的房间。"},narrative:{opening:"你说你需要自己的空间……",struggle:"1929年的英国，女人没有独立财产权。伍尔夫的姑母留给她500英镑年金。",process:"她发现自己能写作了。不是因为突然有了才华，而是因为终于不需要先取悦丈夫。",breakthrough:"她写出了《到灯塔去》《达洛维夫人》，成为现代主义文学的核心人物。",legacy:"她证明了：创造力不是天赋问题，是条件问题。",backToYou:"你需要的不是更多努力，是属于自己的一间房间。"},emotionVector:[.2,.3,.4,.1,.4,.4],keywords:["空间","写作","独立","房间","钱","创作","时间"]},{id:"s004",her:{name:"刘小样",year:2001,region:"中国",quote:"我宁可痛苦，也不要麻木。"},narrative:{opening:"你说你觉得日子在重复……",struggle:"2001年，陕西农村，刘小样是一个普通的农妇。村里人觉得她该知足。",process:"她说「我不甘心，我就觉得外面有更大的世界，但我走不出去。」",breakthrough:"《半边天》来找到了她。全国数百万女性看到了自己。",legacy:"她选择了不麻木，这本身就是一种反抗。",backToYou:"你的不安、你的不甘——不是病，是你还活着的证据。"},emotionVector:[.2,.6,.2,.1,.7,.4],keywords:["麻木","重复","意义","困住","不甘","活着","无聊"]},{id:"s005",her:{name:"波伏娃",year:1949,region:"法国",quote:"女人不是天生的，而是后天形成的。"},narrative:{opening:"你问为什么你总是被要求成为某种样子……",struggle:"1949年的法国，「好女人」的定义是：温顺、美丽、服从。",process:"她花了两年写《第二性》。出版后被骂「疯女人」「荡妇」。",breakthrough:"这本书被翻译成40种语言，影响了此后70年的女性运动。",legacy:"不是你有问题，是剧本有问题。",backToYou:"你不必成为任何人期待的样子。你已经是你自己了。"},emotionVector:[.3,.2,.3,0,.5,.8],keywords:["为什么","应该","要求","定义","女人","角色","期待"]},{id:"s006",her:{name:"上野千鹤子",year:2019,region:"日本",quote:"我不是在抱怨，我是在描述。"},narrative:{opening:"你觉得自己一说不满就被当成「太敏感了」……",struggle:"2019年东京大学开学典礼，她面对一群刚考进顶尖大学的年轻人。",process:"她平静地描述事实——但事实本身就是最锋利的武器。",breakthrough:"这段演讲被翻译成十几种语言。",legacy:"说出真实不是抱怨。看见不公不是敏感。",backToYou:"你不是太敏感。你只是比周围的人醒得早了一点。"},emotionVector:[.3,.2,.2,0,.4,.6],keywords:["敏感","抱怨","不满","不公","看见","说出来"]},{id:"s007",her:{name:"萧红",year:1936,region:"中国",quote:"我要用自己的头脑做武器，在这艰难的世上开辟出一条路来。"},narrative:{opening:"你说你想逃离现在的环境……",struggle:"1932年，萧红从家里逃出来，身无分文，怀着孕。",process:"她开始写。没有纸就写在包装纸上。",breakthrough:"《生死场》出版时她25岁。鲁迅亲自作序。",legacy:"一个没有任何依靠的女人，也能用文字开辟一条路。",backToYou:"逃离不是懦弱。你想走，是因为你知道有更好的可能。"},emotionVector:[.2,.5,.3,.1,.3,.6],keywords:["逃离","逃跑","离开","害怕","出走","自由"]},{id:"s008",her:{name:"金斯伯格",year:1993,region:"美国",quote:"我不是在寻求特权，我是在寻求平等。"},narrative:{opening:"你在争取属于自己的东西时，被说「要求太多了」……",struggle:"哈佛法学院500人中有9个女性。院长问她们：「你们为什么要占男人的位置？」",process:"她以全班第一名毕业，却没有一家律所愿意雇佣她。",breakthrough:"她打赢了6起最高法院性别平等案件。后来成为大法官。",legacy:"争取平等不是「要太多」。",backToYou:"你不是要求太多。你只是在要求本来就该是你的东西。"},emotionVector:[.3,.1,.4,0,.2,.8],keywords:["争取","平等","要求","公平","权利","太多"]},{id:"s009",her:{name:"张爱玲",year:1943,region:"中国",quote:"生命是一袭华美的袍，爬满了虱子。"},narrative:{opening:"你觉得表面看起来都好好的，但内心其实在崩溃……",struggle:"1943年的上海，张爱玲23岁，刚刚成名。所有人看到的是天才。",process:"没人看到的是：她从小被父亲囚禁过，被继母打过。",breakthrough:"她把那些虱子一只一只写进小说里。",legacy:"承认自己破碎不是软弱。",backToYou:"你不需要假装没事。让它被看见。"},emotionVector:[.1,.8,.1,.1,.4,.1],keywords:["崩溃","假装","没事","累","装","坚强","撑不住"]},{id:"s010",her:{name:"居里夫人",year:1903,region:"波兰/法国",quote:"生活中没有什么可怕的东西，只有需要理解的东西。"},narrative:{opening:"你说你很害怕失败……",struggle:"24岁的玛丽从波兰到巴黎求学。冬天把所有衣服穿在身上睡觉。",process:"诺贝尔奖最初只写了她丈夫的名字。",breakthrough:"她成为第一个获得诺贝尔奖的女性。",legacy:"她把恐惧变成了理解世界的动力。",backToYou:"害怕不是停下来的理由——它说明你在做一件重要的事。"},emotionVector:[.1,.3,.5,.1,.4,.5],keywords:["害怕","失败","证明","恐惧","怕","焦虑"]},{id:"s011",her:{name:"奥德丽·洛德",year:1977,region:"美国",quote:"我拒绝在沉默中消失。"},narrative:{opening:"你觉得说出来也没用……",struggle:"一个黑人女同性恋诗人——同时面对三重边缘化。",process:"她选择全部说出来。「我的沉默没有保护过我。」",breakthrough:"她的诗集成为交叉性女权主义的奠基文本。",legacy:"说出来不一定能改变世界，但沉默一定不能。",backToYou:"「算了」保护不了你。说出来可能很难，但至少你的声音存在过。"},emotionVector:[.4,.3,.2,0,.2,.8],keywords:["沉默","算了","说出来","没用","忍","压抑"]},{id:"s012",her:{name:"你自己",year:2026,region:"此刻",quote:"你来到这里，就已经是一种勇敢了。"},narrative:{opening:"你说你不知道该怎么办……",struggle:"此刻的你，坐在屏幕前。也许是好奇，也许是疲惫。",process:"你不需要有明确的问题。你只需要在这里。",breakthrough:"你已经在这里了。",legacy:"洞穴只是记得你来过。",backToYou:"你不必成为任何人。这里只是你存在的一个证据。"},emotionVector:[.1,.3,.2,.3,.5,.1],keywords:["不知道","怎么办","迷茫","随便","看看","试试"]}];
+const emotionDict={0:['愤怒','恨','不公','压迫','气','怒','凭什么','不服','不甘','委屈'],1:['悲伤','痛','孤独','累','疲惫','无助','绝望','哭','伤心','丧','空'],2:['希望','光','未来','相信','值得','梦想','勇敢','努力'],3:['爱','温柔','母亲','孩子','家','温暖','心疼','珍惜'],4:['为什么','不知道','迷茫','困惑','矛盾','纠结','怎么办'],5:['反抗','拒绝','争取','打破','改变','自由','独立','不接受']};
+const guideWords=[["我很累","为什么总是我","我想自由","没人理解我"],["不公平","我害怕","凭什么","我值得"],["迷茫","不甘心","我母亲","想逃离"]];
+
+// STATE
+const SK='echoCave_v9';
+let mem=JSON.parse(localStorage.getItem(SK)||'null')||{visitCount:0,totalAwakened:0,entries:[],days:[]};
+let usedIdx=new Set(), currentStory=null, lastInput='', isRec=false, selEmotion=-1;
+
+// ============================================================
+//  TAB NAVIGATION
+// ============================================================
+function switchTab(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.classList.toggle('active',t.dataset.screen===name||(name==='story'&&t.dataset.screen==='ask'));
+  });
+  if(name==='cave')renderCave();
+  if(name==='ask')showGuide();
+  haptic('light');
+}
+
+// ============================================================
+//  RIPPLE ENGINE (warm version)
+// ============================================================
+const RL=document.getElementById('ripple-layer'),rCtx=RL.getContext('2d');
+let rW,rH;
+function rR(){rW=RL.width=innerWidth;rH=RL.height=innerHeight;}
+addEventListener('resize',rR);rR();
+
+let ripples=[];
+class WarmRipple{
+  constructor(x,y,color){this.x=x;this.y=y;this.rings=[];this.color=color||'196,165,116';
+    for(let i=0;i<3;i++)setTimeout(()=>{this.rings.push({r:0,op:.5,w:3,born:performance.now()});haptic('light');},i*500);
+  }
+  update(now){
+    for(const r of this.rings){const age=(now-r.born)/1000;if(age<0)continue;r.r+=2+age*.6;r.op=Math.max(0,.5-age*.25);r.w=Math.max(.2,3-age*1.5);}
+    this.rings=this.rings.filter(r=>r.op>0);
+  }
+  draw(ctx){for(const r of this.rings){if(r.op<=0)continue;ctx.beginPath();ctx.arc(this.x,this.y,r.r,0,Math.PI*2);ctx.strokeStyle=`rgba(${this.color},${r.op})`;ctx.lineWidth=r.w;ctx.stroke();}}
+  isDead(){return this.rings.length===0;}
+}
+
+document.addEventListener('touchstart',e=>{
+  const t=e.touches[0];
+  const colors=['196,165,116','199,91,91','123,158,184','155,142,196','200,126,110'];
+  ripples.push(new WarmRipple(t.clientX,t.clientY,colors[Math.floor(Math.random()*colors.length)]));
+},{passive:true});
+
+function renderRipples(){
+  rCtx.clearRect(0,0,rW,rH);
+  const now=performance.now();
+  for(const r of ripples){r.update(now);r.draw(rCtx);}
+  ripples=ripples.filter(r=>!r.isDead());
+  requestAnimationFrame(renderRipples);
+}
+renderRipples();
+
+// ============================================================
+//  HAPTIC
+// ============================================================
+function haptic(t){if(!navigator.vibrate)return;({light:()=>navigator.vibrate(10),medium:()=>navigator.vibrate(25),heavy:()=>navigator.vibrate(50),confirm:()=>navigator.vibrate([15,50,15])})[t]?.();}
+
+// ============================================================
+//  HOME
+// ============================================================
+function initHome(){
+  const d=new Date();
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('home-date').textContent=`${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+  const today=d.toDateString();
+  if(!mem.days.includes(today)){mem.days.push(today);mem.visitCount++;saveMem();}
+  document.getElementById('streak-num').textContent=mem.totalAwakened;
+  document.getElementById('streak-sub').textContent=`${mem.days.length} 天到访 · ${mem.entries.length} 次诉说`;
+  const dots=document.getElementById('streak-dots');
+  const dayLabels=['一','二','三','四','五','六','日'];
+  const dow=d.getDay()||7;
+  let html='';
+  for(let i=1;i<=7;i++){
+    const cls=i<dow?'filled':i===dow?'today':'';
+    html+=`<div class="streak-dot ${cls}">${dayLabels[i-1]}</div>`;
+  }
+  dots.innerHTML=html;
+}
+
+// ============================================================
+//  EMOTION PICKER
+// ============================================================
+function pickEmotion(el){
+  document.querySelectorAll('.emotion-dot').forEach(d=>d.classList.remove('selected'));
+  el.classList.add('selected');
+  selEmotion=parseInt(el.dataset.idx);
+  haptic('light');
+}
+
+// ============================================================
+//  VOICE
+// ============================================================
+let recognition=null;
+if('webkitSpeechRecognition' in window||'SpeechRecognition' in window){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  recognition=new SR();recognition.lang='zh-CN';recognition.continuous=false;recognition.interimResults=true;
+  recognition.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;document.getElementById('text-input').value=t;};
+  recognition.onend=()=>{if(isRec)stopVoiceInt();};
+}
+function startVoice(e){e.preventDefault();isRec=true;haptic('light');document.getElementById('voice-btn').classList.add('recording');document.getElementById('voice-icon').textContent='🔴';document.getElementById('voice-hint').textContent='她在听……松开发送';if(recognition)recognition.start();}
+function stopVoice(e){e.preventDefault();stopVoiceInt();}
+function stopVoiceInt(){isRec=false;haptic('confirm');document.getElementById('voice-btn').classList.remove('recording');document.getElementById('voice-icon').textContent='🎙️';document.getElementById('voice-hint').textContent='按住说话，让她听见';if(recognition)try{recognition.stop();}catch(e){}
+  const t=document.getElementById('text-input').value.trim();if(t)setTimeout(()=>sendText(),300);
+}
+
+// ============================================================
+//  SEND + MATCH
+// ============================================================
+function analyzeEmotion(text){const v=[0,0,0,0,0,0];for(let d=0;d<6;d++)for(const w of emotionDict[d])if(text.includes(w))v[d]++;const mx=Math.max(...v,1);const n=v.map(x=>x/mx);if(n.every(x=>x===0)){n[4]=0.5;}return n;}
+function cosSim(a,b){let d=0,ma=0,mb=0;for(let i=0;i<a.length;i++){d+=a[i]*b[i];ma+=a[i]*a[i];mb+=b[i]*b[i];}return(ma&&mb)?d/(Math.sqrt(ma)*Math.sqrt(mb)):0;}
+function findMatch(text){
+  const v=analyzeEmotion(text);
+  if(selEmotion>=0&&selEmotion<6)v[selEmotion]=Math.max(v[selEmotion],0.8);
+  let best=-1,bi=-1;
+  for(let i=0;i<stories.length;i++){if(usedIdx.has(i))continue;const s=stories[i];let kw=0;for(const k of s.keywords)if(text.includes(k))kw+=.3;kw=Math.min(kw,1);const sc=kw*.4+cosSim(v,s.emotionVector)*.6;if(sc>best){best=sc;bi=i;}}
+  if(bi<0){const u=[];for(let i=0;i<stories.length;i++)if(!usedIdx.has(i))u.push(i);if(u.length)bi=u[Math.floor(Math.random()*u.length)];}
+  return bi;
+}
+
+function sendText(){
+  const inp=document.getElementById('text-input');const text=inp.value.trim();if(!text)return;
+  lastInput=text;inp.value='';haptic('medium');
+  const idx=findMatch(text);if(idx<0)return;
+  usedIdx.add(idx);currentStory=stories[idx];
+  mem.totalAwakened++;
+  mem.entries.push({input:text,story:currentStory.her.name,quote:currentStory.her.quote,backToYou:currentStory.narrative.backToYou,time:new Date().toISOString()});
+  saveMem();
+  showStory(currentStory);
+}
+
+// ============================================================
+//  STORY DISPLAY
+// ============================================================
+function showStory(s){
+  haptic('heavy');
+  switchTab('story');
+  document.getElementById('s-name').textContent=s.her.name;
+  document.getElementById('s-year').textContent=`${s.her.year} · ${s.her.region}`;
+  document.getElementById('s-quote').textContent=`「${s.her.quote}」`;
+  const narr=document.getElementById('s-narrative');narr.innerHTML='';
+  const parts=[s.narrative.opening,s.narrative.struggle,s.narrative.process,s.narrative.breakthrough,s.narrative.legacy];
+  parts.forEach((t,i)=>{const p=document.createElement('div');p.className='narrative-part';p.textContent=t;narr.appendChild(p);setTimeout(()=>p.classList.add('visible'),400+i*800);});
+  const bty=document.getElementById('s-bty');bty.textContent=s.narrative.backToYou;
+  const btyCard=document.getElementById('s-bty-card');btyCard.classList.remove('visible');
+  setTimeout(()=>{btyCard.classList.add('visible');haptic('confirm');},400+parts.length*800+500);
+}
+
+// ============================================================
+//  GUIDE
+// ============================================================
+function showGuide(){
+  const set=guideWords[Math.floor(Math.random()*guideWords.length)];
+  document.getElementById('guide-pills').innerHTML=set.map(w=>`<div class="guide-pill" onclick="useGuide('${w}')">${w}</div>`).join('');
+}
+function useGuide(w){document.getElementById('text-input').value=w;sendText();}
+
+// ============================================================
+//  CAVE
+// ============================================================
+function renderCave(){
+  document.getElementById('cave-stats').innerHTML=`<div class="cave-stat-card"><div class="cave-stat-num">${mem.entries.length}</div><div class="cave-stat-label">次诉说</div></div><div class="cave-stat-card"><div class="cave-stat-num">${mem.totalAwakened}</div><div class="cave-stat-label">个唤醒</div></div><div class="cave-stat-card"><div class="cave-stat-num">${mem.days.length}</div><div class="cave-stat-label">天到访</div></div>`;
+  const el=document.getElementById('cave-entries');
+  if(!mem.entries.length){el.innerHTML='<div style="text-align:center;padding:40px;color:var(--text-sub);font-size:14px;font-family:var(--font-wen)">还没有诉说。去问她吧。</div>';return;}
+  let h='<div class="cave-section-title">你曾说过</div>';
+  mem.entries.slice(-10).reverse().forEach(e=>{h+=`<div class="cave-entry-card"><div class="cave-entry-input">「${e.input}」</div><div class="cave-entry-resp">${e.story}：${e.backToYou}</div><div class="cave-entry-meta"><span class="cave-entry-name">${e.story}</span><span class="cave-entry-time">${new Date(e.time).toLocaleDateString('zh-CN')}</span></div></div>`;});
+  el.innerHTML=h;
+}
+
+// ============================================================
+//  POSTER
+// ============================================================
+function generatePoster(){
+  if(!currentStory)return;haptic('heavy');
+  const c=document.getElementById('poster-canvas'),ctx=c.getContext('2d'),W=540,H=960;c.width=W;c.height=H;
+  // Warm gradient bg
+  const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#f5ebe0');bg.addColorStop(1,'#edd5bf');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  // Grain
+  for(let i=0;i<2000;i++){ctx.fillStyle=`rgba(0,0,0,${Math.random()*0.012})`;ctx.fillRect(Math.random()*W,Math.random()*H,1,1);}
+  // Gold line
+  ctx.strokeStyle='rgba(196,165,116,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(60,50);ctx.lineTo(W-60,50);ctx.stroke();ctx.beginPath();ctx.moveTo(60,H-50);ctx.lineTo(W-60,H-50);ctx.stroke();
+  // Title
+  ctx.font='700 28px "Noto Serif SC",serif';ctx.fillStyle='#2d2a26';ctx.textAlign='center';ctx.fillText('回声洞穴',W/2,100);
+  ctx.font='300 11px "Noto Sans SC",sans-serif';ctx.fillStyle='#8a8278';ctx.fillText('ECHO CAVE',W/2,120);
+  // Input
+  ctx.font='300 14px "LXGW WenKai",serif';ctx.fillStyle='#8a8278';ctx.fillText('我说：',W/2,175);
+  ctx.font='400 17px "LXGW WenKai",serif';ctx.fillStyle='#2d2a26';wrapText(ctx,`「${lastInput}」`,W/2,210,W-100,26);
+  // Dot
+  ctx.fillStyle='rgba(196,165,116,0.5)';ctx.beginPath();ctx.arc(W/2,280,3,0,Math.PI*2);ctx.fill();
+  // Name
+  ctx.font='700 22px "Noto Serif SC",serif';ctx.fillStyle='#2d2a26';ctx.fillText(`${currentStory.her.name}，${currentStory.her.year}年`,W/2,330);
+  // Quote
+  ctx.font='400 19px "LXGW WenKai",serif';ctx.fillStyle='#c87e6e';wrapText(ctx,`「${currentStory.her.quote}」`,W/2,375,W-100,28);
+  // BTY
+  ctx.font='400 14px "LXGW WenKai",serif';ctx.fillStyle='#555';wrapText(ctx,currentStory.narrative.backToYou,W/2,500,W-120,22);
+  // Footer
+  ctx.font='300 11px "Noto Sans SC",sans-serif';ctx.fillStyle='#aaa';ctx.fillText('打开回声洞穴，问她',W/2,H-75);ctx.font='300 10px "Noto Sans SC",sans-serif';ctx.fillStyle='#ccc';ctx.fillText('#回声洞穴 #女性故事 #'+currentStory.her.name,W/2,H-58);
+  document.getElementById('poster-img').src=c.toDataURL('image/png');document.getElementById('poster-overlay').classList.add('active');
+}
+function wrapText(ctx,text,x,y,mw,lh){let line='',cy=y;for(const ch of text.split('')){if(ctx.measureText(line+ch).width>mw){ctx.fillText(line,x,cy);line=ch;cy+=lh;}else line+=ch;}ctx.fillText(line,x,cy);}
+function savePoster(){const a=document.createElement('a');a.download=`回声洞穴-${currentStory.her.name}.png`;a.href=document.getElementById('poster-canvas').toDataURL();a.click();haptic('confirm');}
+function closePoster(){document.getElementById('poster-overlay').classList.remove('active');}
+
+// ============================================================
+//  MEMORY
+// ============================================================
+function saveMem(){localStorage.setItem(SK,JSON.stringify(mem));}
+
+// ============================================================
+//  INIT
+// ============================================================
+initHome();
+showGuide();
+</script>
+</body>
+</html>
