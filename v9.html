@@ -573,7 +573,7 @@ let wxReady=false;
 
 // ⚠️ 配置项：替换为你的公众号信息
 const WX_CONFIG={
-  signatureUrl:'https://echo-cave-wx.xixixi.workers.dev/wx-sign',
+  signatureUrl:'/.netlify/functions/wx-sign',
   appId:'wxecce1cffee8b6c96'
 };
 
@@ -669,8 +669,8 @@ if(isWeChat&&(!WX_CONFIG.signatureUrl||!WX_CONFIG.appId)){
 //  AI CONFIG
 // ============================================================
 const AI_CONFIG={
-  apiUrl:'/api/generate',  // Vercel serverless endpoint
-  enabled:true             // false = fallback to local matching
+  apiUrl:'/.netlify/functions/generate',
+  enabled:true
 };
 
 // ============================================================
@@ -726,39 +726,18 @@ async function generateWithAI(text){
     });
 
     if(!res.ok)throw new Error('API error');
+    const data=await res.json();
+    if(data.error)throw new Error(data.error);
 
-    const reader=res.body.getReader();
-    const decoder=new TextDecoder();
-    let buffer='',fullContent='';
-
-    while(true){
-      const{done,value}=await reader.read();
-      if(done)break;
-      buffer+=decoder.decode(value,{stream:true});
-      const lines=buffer.split('\n');
-      buffer=lines.pop()||'';
-      for(const line of lines){
-        if(!line.startsWith('data: '))continue;
-        const data=line.slice(6);
-        if(data==='[DONE]')break;
-        try{
-          const parsed=JSON.parse(data);
-          if(parsed.error)throw new Error(parsed.error);
-          if(parsed.content){
-            fullContent+=parsed.content;
-            updateStreamingDisplay(fullContent);
-          }
-        }catch(e){if(e.message!=='[DONE]')console.warn(e);}
-      }
-    }
-
-    const story=parseAIResponse(fullContent);
+    const story=parseAIResponse(data.content);
     if(story){
       currentStory={her:{name:story.protagonist,year:story.year,region:story.region,quote:story.quote},narrative:{opening:story.opening,struggle:story.story,process:'',breakthrough:'',legacy:'',backToYou:story.backToYou},keywords:story.keywords||[]};
       mem.totalAwakened++;
       mem.entries.push({input:text,story:story.protagonist,quote:story.quote,backToYou:story.backToYou,time:new Date().toISOString()});
       saveMem();
       showStoryFinal(story);
+    } else {
+      throw new Error('parse failed');
     }
   }catch(e){
     console.warn('AI failed, falling back:',e);
