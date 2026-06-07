@@ -290,13 +290,48 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 .cave-entry-time{font-size:10px;color:rgba(0,0,0,0.15);}
 
 /* ================================================
-   POSTER OVERLAY
+   POSTER OVERLAY — 分享页改版
    ================================================ */
-#poster-overlay{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.6);backdrop-filter:blur(20px);display:none;align-items:center;justify-content:center;flex-direction:column;padding:20px;}
+#poster-overlay{position:fixed;inset:0;z-index:200;background:rgba(10,10,15,0.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);display:none;flex-direction:column;padding:0;overflow-y:auto;}
 #poster-overlay.active{display:flex;}
-#poster-overlay img{max-width:280px;border-radius:16px;box-shadow:var(--shadow-lg);}
-.poster-save-btn{margin-top:20px;padding:12px 32px;border-radius:24px;background:var(--card);color:var(--text);font-size:14px;box-shadow:var(--shadow);cursor:pointer;}
-.poster-close-btn{margin-top:14px;font-size:12px;color:rgba(255,255,255,0.5);cursor:pointer;}
+
+.poster-header{display:flex;justify-content:space-between;align-items:center;padding:calc(var(--safe-top) + 8px) 20px 12px;flex-shrink:0;}
+.poster-header-title{font-family:var(--font-serif);font-size:16px;color:rgba(245,240,232,0.8);}
+.poster-close-x{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;color:rgba(245,240,232,0.5);font-size:18px;cursor:pointer;}
+
+.poster-preview{flex:1;display:flex;align-items:center;justify-content:center;padding:16px 30px;position:relative;overflow:hidden;}
+.poster-preview img{max-width:100%;max-height:65vh;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.5);}
+
+/* 金尘粒子背景 */
+.poster-particles{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+.poster-particle{position:absolute;width:2px;height:2px;border-radius:50%;background:rgba(232,213,183,0.4);animation:particleFloat 6s ease-in-out infinite;}
+@keyframes particleFloat{0%,100%{transform:translateY(0) scale(1);opacity:0.2;}50%{transform:translateY(-40px) scale(1.5);opacity:0.6;}}
+
+/* 模板选择器 */
+.poster-templates{display:flex;gap:12px;padding:16px 20px;overflow-x:auto;flex-shrink:0;-webkit-overflow-scrolling:touch;}
+.poster-tpl{
+  width:52px;height:72px;border-radius:10px;flex-shrink:0;cursor:pointer;
+  border:2px solid transparent;transition:all .3s;position:relative;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;font-size:9px;color:rgba(245,240,232,0.5);text-align:center;padding:4px;
+}
+.poster-tpl.active{border-color:rgba(232,213,183,0.6);box-shadow:0 0 12px rgba(232,213,183,0.15);}
+.poster-tpl-cave{background:linear-gradient(180deg,#1A1A2E,#16213E);}
+.poster-tpl-paper{background:linear-gradient(180deg,#f5ebe0,#edd5bf);}
+.poster-tpl-minimal{background:#fff;color:rgba(0,0,0,0.4);}
+.poster-tpl-poster{background:linear-gradient(180deg,#2a1a1a,#1a1a2e);}
+
+/* 底部操作栏 */
+.poster-actions{
+  display:flex;gap:12px;padding:16px 20px calc(16px + var(--safe-bottom));
+  flex-shrink:0;
+}
+.poster-action-btn{
+  flex:1;padding:14px;border-radius:16px;text-align:center;
+  font-size:14px;cursor:pointer;transition:all .2s;border:none;
+}
+.poster-action-btn:active{transform:scale(.96);}
+.poster-action-btn.primary{background:linear-gradient(135deg,#C45C3E,#d4744a);color:#fff;font-weight:500;box-shadow:0 4px 20px rgba(196,92,62,0.3);}
+.poster-action-btn.secondary{background:rgba(245,240,232,0.08);color:rgba(245,240,232,0.7);border:1px solid rgba(245,240,232,0.1);}
 #poster-canvas{display:none;}
 
 /* === RIPPLE CANVAS === */
@@ -457,11 +492,29 @@ canvas#ripple-layer{position:fixed;inset:0;z-index:100;pointer-events:none;}
   </div>
 </div>
 
-<!-- POSTER -->
+<!-- POSTER SHARE PAGE -->
 <div id="poster-overlay">
-  <img id="poster-img" src="">
-  <div class="poster-save-btn" onclick="savePoster()">保存图片</div>
-  <div class="poster-close-btn" onclick="closePoster()">关闭</div>
+  <div class="poster-header">
+    <div class="poster-header-title">分享觉醒</div>
+    <div class="poster-close-x" onclick="closePoster()">✕</div>
+  </div>
+
+  <div class="poster-preview">
+    <div class="poster-particles" id="poster-particles"></div>
+    <img id="poster-img" src="">
+  </div>
+
+  <div class="poster-templates" id="poster-templates">
+    <div class="poster-tpl poster-tpl-cave active" data-tpl="cave" onclick="switchTemplate('cave')">经典<br>洞穴</div>
+    <div class="poster-tpl poster-tpl-paper" data-tpl="paper" onclick="switchTemplate('paper')">明亮<br>纸张</div>
+    <div class="poster-tpl poster-tpl-minimal" data-tpl="minimal" onclick="switchTemplate('minimal')">极简<br>线条</div>
+    <div class="poster-tpl poster-tpl-poster" data-tpl="poster" onclick="switchTemplate('poster')">全屏<br>海报</div>
+  </div>
+
+  <div class="poster-actions">
+    <div class="poster-action-btn secondary" onclick="closePoster()">关闭</div>
+    <div class="poster-action-btn primary" onclick="savePoster()">保存图片</div>
+  </div>
 </div>
 <canvas id="poster-canvas" width="540" height="960"></canvas>
 
@@ -838,81 +891,143 @@ function renderCave(){
 }
 
 // ============================================================
-//  POSTER — 觉醒者风格（洞穴墨蓝 + 锈红 + 暖金）
+//  POSTER — 4 模板 + 金尘粒子
 // ============================================================
+let currentTemplate='cave';
+
+function switchTemplate(tpl){
+  currentTemplate=tpl;
+  document.querySelectorAll('.poster-tpl').forEach(t=>t.classList.toggle('active',t.dataset.tpl===tpl));
+  generatePoster();
+}
+
+function initParticles(){
+  const container=document.getElementById('poster-particles');
+  container.innerHTML='';
+  for(let i=0;i<20;i++){
+    const p=document.createElement('div');p.className='poster-particle';
+    p.style.left=Math.random()*100+'%';p.style.top=Math.random()*100+'%';
+    p.style.animationDelay=Math.random()*6+'s';p.style.animationDuration=(4+Math.random()*4)+'s';
+    container.appendChild(p);
+  }
+}
+
 function generatePoster(){
   if(!currentStory)return;haptic('heavy');
   const c=document.getElementById('poster-canvas'),ctx=c.getContext('2d'),W=540,H=960;c.width=W;c.height=H;
 
-  // 洞穴深色背景渐变
+  if(currentTemplate==='cave')drawCaveTemplate(ctx,W,H);
+  else if(currentTemplate==='paper')drawPaperTemplate(ctx,W,H);
+  else if(currentTemplate==='minimal')drawMinimalTemplate(ctx,W,H);
+  else if(currentTemplate==='poster')drawPosterTemplate(ctx,W,H);
+
+  document.getElementById('poster-img').src=c.toDataURL('image/png');
+  document.getElementById('poster-overlay').classList.add('active');
+  initParticles();
+}
+
+// 模板A：经典洞穴（深色）
+function drawCaveTemplate(ctx,W,H){
   const bg=ctx.createLinearGradient(0,0,0,H);
   bg.addColorStop(0,'#1A1A2E');bg.addColorStop(0.6,'#16213E');bg.addColorStop(1,'#0F0F1A');
   ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
-
-  // 岩壁纹理（颗粒噪点）
-  for(let i=0;i<4000;i++){
-    const a=Math.random()*0.03;
-    ctx.fillStyle=`rgba(245,240,232,${a})`;
-    ctx.fillRect(Math.random()*W,Math.random()*H,1,1);
-  }
-
-  // 顶部光束（暖金光晕）
-  const beam=ctx.createRadialGradient(W/2,80,10,W/2,80,200);
-  beam.addColorStop(0,'rgba(232,213,183,0.12)');beam.addColorStop(1,'rgba(232,213,183,0)');
-  ctx.fillStyle=beam;ctx.fillRect(0,0,W,280);
-
-  // 声波同心圆装饰（淡金）
-  ctx.strokeStyle='rgba(232,213,183,0.06)';ctx.lineWidth=0.5;
-  for(let i=1;i<=5;i++){ctx.beginPath();ctx.arc(W/2,H*0.35,40*i,0,Math.PI*2);ctx.stroke();}
-
-  // 品牌标题
-  ctx.font='600 16px "Noto Serif SC",serif';ctx.fillStyle='rgba(245,240,232,0.5)';ctx.textAlign='center';
-  ctx.fillText('回声洞穴',W/2,80);
-  ctx.font='300 9px sans-serif';ctx.fillStyle='rgba(245,240,232,0.25)';
-  ctx.fillText('ECHO CAVE',W/2,98);
-
-  // 分割点
-  ctx.fillStyle='rgba(232,213,183,0.4)';ctx.beginPath();ctx.arc(W/2,130,2,0,Math.PI*2);ctx.fill();
-
-  // 用户输入
-  ctx.font='300 13px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.45)';
-  ctx.fillText('我说：',W/2,175);
-  ctx.font='400 17px "LXGW WenKai",serif';ctx.fillStyle='#F5F0E8';
-  wrapText(ctx,`「${lastInput}」`,W/2,210,W-100,28);
-
-  // 金色分割线
-  ctx.strokeStyle='rgba(232,213,183,0.2)';ctx.lineWidth=0.5;
-  ctx.beginPath();ctx.moveTo(W*0.2,310);ctx.lineTo(W*0.8,310);ctx.stroke();
-
-  // 觉醒者名字
-  ctx.font='500 14px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.5)';
-  ctx.fillText(`${currentStory.her.name}，${currentStory.her.year}`,W/2,355);
-
-  // 金句（锈红色，大字）
-  ctx.font='700 24px "Noto Serif SC",serif';ctx.fillStyle='#C45C3E';
-  const quoteY=wrapText(ctx,`「${currentStory.her.quote}」`,W/2,405,W-80,36);
-
-  // 回到你（暖金色，小字）
-  const btyStartY=Math.max(quoteY+60,520);
-  ctx.font='400 14px "LXGW WenKai",serif';ctx.fillStyle='rgba(245,240,232,0.55)';
-  wrapText(ctx,currentStory.narrative.backToYou,W/2,btyStartY,W-100,24);
-
-  // 底部声波水印
+  for(let i=0;i<4000;i++){ctx.fillStyle=`rgba(245,240,232,${Math.random()*0.025})`;ctx.fillRect(Math.random()*W,Math.random()*H,1,1);}
+  const beam=ctx.createRadialGradient(W/2,60,5,W/2,60,180);
+  beam.addColorStop(0,'rgba(232,213,183,0.1)');beam.addColorStop(1,'rgba(232,213,183,0)');
+  ctx.fillStyle=beam;ctx.fillRect(0,0,W,240);
+  ctx.strokeStyle='rgba(232,213,183,0.04)';ctx.lineWidth=0.5;
+  for(let i=1;i<=4;i++){ctx.beginPath();ctx.arc(W/2,H*0.4,50*i,0,Math.PI*2);ctx.stroke();}
+  ctx.font='600 16px "Noto Serif SC",serif';ctx.fillStyle='rgba(245,240,232,0.5)';ctx.textAlign='center';ctx.fillText('回声洞穴',W/2,70);
+  ctx.font='300 9px sans-serif';ctx.fillStyle='rgba(245,240,232,0.25)';ctx.fillText('ECHO CAVE',W/2,88);
+  ctx.fillStyle='rgba(232,213,183,0.3)';ctx.beginPath();ctx.arc(W/2,115,2,0,Math.PI*2);ctx.fill();
+  ctx.font='300 13px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.45)';ctx.fillText('我说：',W/2,160);
+  ctx.font='400 18px "Noto Serif SC",serif';ctx.fillStyle='#F5F0E8';
+  wrapText(ctx,`「${lastInput}」`,W/2,195,W-90,30);
+  ctx.strokeStyle='rgba(232,213,183,0.15)';ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(W*0.2,295);ctx.lineTo(W*0.8,295);ctx.stroke();
+  ctx.font='400 14px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.6)';
+  ctx.fillText(`${currentStory.her.name}，${currentStory.her.year}`,W/2,340);
+  ctx.font='700 22px "Noto Serif SC",serif';ctx.fillStyle='#C45C3E';
+  const qy=wrapText(ctx,`「${currentStory.her.quote}」`,W/2,385,W-80,34);
+  ctx.font='400 14px "LXGW WenKai",serif';ctx.fillStyle='rgba(245,240,232,0.5)';
+  wrapText(ctx,currentStory.narrative.backToYou,W/2,Math.max(qy+55,500),W-100,24);
   ctx.strokeStyle='rgba(232,213,183,0.04)';ctx.lineWidth=1;
-  for(let i=0;i<30;i++){
-    const x=W*0.15+i*(W*0.7/30);
-    const h2=8+Math.sin(i*0.5)*6;
-    ctx.beginPath();ctx.moveTo(x,H-100-h2);ctx.lineTo(x,H-100+h2);ctx.stroke();
-  }
-
-  // 底部文案
-  ctx.font='300 11px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.3)';
-  ctx.fillText('你的不安不是病，是你还活着的证据',W/2,H-65);
-  ctx.font='300 9px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.15)';
-  ctx.fillText('#回声洞穴 #觉醒者 #'+currentStory.her.name,W/2,H-45);
-
-  document.getElementById('poster-img').src=c.toDataURL('image/png');document.getElementById('poster-overlay').classList.add('active');
+  for(let i=0;i<30;i++){const x=W*0.15+i*(W*0.7/30);const h2=6+Math.sin(i*0.5)*5;ctx.beginPath();ctx.moveTo(x,H-90-h2);ctx.lineTo(x,H-90+h2);ctx.stroke();}
+  ctx.font='300 11px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.25)';
+  ctx.fillText('你的不安不是病，是你还活着的证据',W/2,H-55);
+  ctx.font='300 9px sans-serif';ctx.fillStyle='rgba(245,240,232,0.12)';
+  ctx.fillText('#回声洞穴 #觉醒者 #'+currentStory.her.name,W/2,H-35);
 }
+
+// 模板B：明亮纸张
+function drawPaperTemplate(ctx,W,H){
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#f8f4ee');bg.addColorStop(1,'#f0e6d8');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  for(let i=0;i<2000;i++){ctx.fillStyle=`rgba(0,0,0,${Math.random()*0.01})`;ctx.fillRect(Math.random()*W,Math.random()*H,1,1);}
+  // vignette
+  const vig=ctx.createRadialGradient(W/2,H/2,H*0.3,W/2,H/2,H*0.7);
+  vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,0.06)');
+  ctx.fillStyle=vig;ctx.fillRect(0,0,W,H);
+  ctx.font='600 16px "Noto Serif SC",serif';ctx.fillStyle='#2d2a26';ctx.textAlign='center';ctx.fillText('回声洞穴',W/2,75);
+  ctx.font='300 9px sans-serif';ctx.fillStyle='#aaa';ctx.fillText('ECHO CAVE',W/2,93);
+  ctx.strokeStyle='rgba(0,0,0,0.06)';ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(60,120);ctx.lineTo(W-60,120);ctx.stroke();
+  ctx.font='300 13px "Noto Sans SC",sans-serif';ctx.fillStyle='#8a8278';ctx.fillText('我说：',W/2,170);
+  ctx.font='400 18px "Noto Serif SC",serif';ctx.fillStyle='#2d2a26';
+  wrapText(ctx,`「${lastInput}」`,W/2,205,W-90,30);
+  ctx.fillStyle='rgba(196,165,116,0.3)';ctx.beginPath();ctx.arc(W/2,290,3,0,Math.PI*2);ctx.fill();
+  ctx.font='400 14px "Noto Sans SC",sans-serif';ctx.fillStyle='#8a8278';
+  ctx.fillText(`${currentStory.her.name}，${currentStory.her.year}`,W/2,340);
+  ctx.font='700 22px "Noto Serif SC",serif';ctx.fillStyle='#8B3A3A';
+  const qy=wrapText(ctx,`「${currentStory.her.quote}」`,W/2,385,W-80,34);
+  ctx.font='400 14px "LXGW WenKai",serif';ctx.fillStyle='rgba(45,42,38,0.55)';
+  wrapText(ctx,currentStory.narrative.backToYou,W/2,Math.max(qy+55,500),W-100,24);
+  ctx.strokeStyle='rgba(0,0,0,0.06)';ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(60,H-80);ctx.lineTo(W-60,H-80);ctx.stroke();
+  ctx.font='300 10px "Noto Sans SC",sans-serif';ctx.fillStyle='#bbb';
+  ctx.fillText('#回声洞穴 #'+currentStory.her.name,W/2,H-50);
+}
+
+// 模板C：极简线条
+function drawMinimalTemplate(ctx,W,H){
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#e0e0e0';ctx.lineWidth=1;ctx.strokeRect(30,30,W-60,H-60);
+  ctx.font='300 12px sans-serif';ctx.fillStyle='#999';ctx.textAlign='center';ctx.fillText('ECHO CAVE',W/2,70);
+  ctx.strokeStyle='#eee';ctx.beginPath();ctx.moveTo(W*0.3,90);ctx.lineTo(W*0.7,90);ctx.stroke();
+  ctx.font='400 16px "Noto Serif SC",serif';ctx.fillStyle='#333';
+  wrapText(ctx,`「${lastInput}」`,W/2,160,W-120,28);
+  ctx.font='600 26px "Noto Serif SC",serif';ctx.fillStyle='#C45C3E';
+  const qy=wrapText(ctx,`「${currentStory.her.quote}」`,W/2,320,W-100,38);
+  ctx.font='300 13px sans-serif';ctx.fillStyle='#999';
+  ctx.fillText(`— ${currentStory.her.name}，${currentStory.her.year}`,W/2,qy+40);
+  ctx.font='400 14px "LXGW WenKai",serif';ctx.fillStyle='#666';
+  wrapText(ctx,currentStory.narrative.backToYou,W/2,qy+100,W-120,24);
+  ctx.font='300 10px sans-serif';ctx.fillStyle='#ccc';
+  ctx.fillText('回声洞穴 · echocave.art',W/2,H-55);
+}
+
+// 模板D：全屏海报
+function drawPosterTemplate(ctx,W,H){
+  const bg=ctx.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,'#2a1a1a');bg.addColorStop(0.5,'#1a1a2e');bg.addColorStop(1,'#0f1a2e');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  for(let i=0;i<5000;i++){ctx.fillStyle=`rgba(232,213,183,${Math.random()*0.02})`;ctx.fillRect(Math.random()*W,Math.random()*H,1,1);}
+  // large glow
+  const glow=ctx.createRadialGradient(W/2,H*0.3,20,W/2,H*0.3,280);
+  glow.addColorStop(0,'rgba(196,92,62,0.08)');glow.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
+  ctx.font='900 56px "Noto Serif SC",serif';ctx.fillStyle='rgba(196,92,62,0.9)';ctx.textAlign='center';
+  wrapText(ctx,`「${currentStory.her.quote}」`,W/2,H*0.28,W-60,68);
+  ctx.font='400 14px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.5)';
+  ctx.fillText(`— ${currentStory.her.name}，${currentStory.her.year}`,W/2,H*0.55);
+  ctx.strokeStyle='rgba(232,213,183,0.1)';ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(W*0.25,H*0.6);ctx.lineTo(W*0.75,H*0.6);ctx.stroke();
+  ctx.font='300 13px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.35)';ctx.fillText('我说：',W/2,H*0.67);
+  ctx.font='400 16px "LXGW WenKai",serif';ctx.fillStyle='rgba(245,240,232,0.7)';
+  wrapText(ctx,`"${lastInput}"`,W/2,H*0.71,W-100,26);
+  ctx.font='400 13px "LXGW WenKai",serif';ctx.fillStyle='rgba(245,240,232,0.4)';
+  wrapText(ctx,currentStory.narrative.backToYou,W/2,H*0.82,W-100,22);
+  ctx.font='600 12px "Noto Serif SC",serif';ctx.fillStyle='rgba(245,240,232,0.3)';
+  ctx.fillText('回声洞穴 ECHO CAVE',W/2,H-45);
+}
+
 function wrapText(ctx,text,x,y,mw,lh){let line='',cy=y;for(const ch of text.split('')){if(ctx.measureText(line+ch).width>mw){ctx.fillText(line,x,cy);line=ch;cy+=lh;}else line+=ch;}ctx.fillText(line,x,cy);return cy;}
 function savePoster(){const a=document.createElement('a');a.download=`回声洞穴-${currentStory.her.name}.png`;a.href=document.getElementById('poster-canvas').toDataURL();a.click();haptic('confirm');}
 function closePoster(){document.getElementById('poster-overlay').classList.remove('active');}
