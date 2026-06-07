@@ -301,6 +301,15 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);font-famil
 
 /* === RIPPLE CANVAS === */
 canvas#ripple-layer{position:fixed;inset:0;z-index:100;pointer-events:none;}
+
+/* === AI LOADING STATE === */
+.ai-loading{display:flex;flex-direction:column;align-items:center;padding:60px 20px;gap:20px;}
+.ai-pulse{width:24px;height:24px;border-radius:50%;background:var(--gold-warm);animation:aiPulse 2s ease-in-out infinite;box-shadow:0 0 40px rgba(212,169,106,0.3);}
+@keyframes aiPulse{0%,100%{transform:scale(1);opacity:0.6;}50%{transform:scale(1.4);opacity:1;}}
+.ai-loading-text{font-family:var(--font-wen);font-size:14px;color:var(--text-sub);animation:fadeInOut 2.5s ease-in-out infinite;}
+@keyframes fadeInOut{0%,100%{opacity:0.4;}50%{opacity:1;}}
+.typing-cursor{color:var(--gold-warm);animation:blink 1s step-end infinite;font-weight:300;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
 </style>
 </head>
 <body>
@@ -564,8 +573,8 @@ let wxReady=false;
 
 // ⚠️ 配置项：替换为你的公众号信息
 const WX_CONFIG={
-  signatureUrl:'', // 你的签名接口地址，如 https://your-worker.workers.dev/wx-sign
-  appId:''         // 你的公众号 appId
+  signatureUrl:'https://echo-cave-wx.xixixi.workers.dev/wx-sign',
+  appId:'wxecce1cffee8b6c96'
 };
 
 if(isWeChat&&WX_CONFIG.signatureUrl&&WX_CONFIG.appId){
@@ -657,7 +666,15 @@ if(isWeChat&&(!WX_CONFIG.signatureUrl||!WX_CONFIG.appId)){
 }
 
 // ============================================================
-//  SEND + MATCH
+//  AI CONFIG
+// ============================================================
+const AI_CONFIG={
+  apiUrl:'/api/generate',  // Vercel serverless endpoint
+  enabled:true             // false = fallback to local matching
+};
+
+// ============================================================
+//  SEND + AI GENERATE
 // ============================================================
 function analyzeEmotion(text){const v=[0,0,0,0,0,0];for(let d=0;d<6;d++)for(const w of emotionDict[d])if(text.includes(w))v[d]++;const mx=Math.max(...v,1);const n=v.map(x=>x/mx);if(n.every(x=>x===0)){n[4]=0.5;}return n;}
 function cosSim(a,b){let d=0,ma=0,mb=0;for(let i=0;i<a.length;i++){d+=a[i]*b[i];ma+=a[i]*a[i];mb+=b[i]*b[i];}return(ma&&mb)?d/(Math.sqrt(ma)*Math.sqrt(mb)):0;}
@@ -670,9 +687,20 @@ function findMatch(text){
   return bi;
 }
 
-function sendText(){
-  const inp=document.getElementById('text-input');const text=inp.value.trim();if(!text)return;
+let aiGenerating=false;
+
+async function sendText(){
+  const inp=document.getElementById('text-input');const text=inp.value.trim();if(!text||aiGenerating)return;
   lastInput=text;inp.value='';haptic('medium');
+
+  if(AI_CONFIG.enabled){
+    await generateWithAI(text);
+  } else {
+    fallbackLocal(text);
+  }
+}
+
+function fallbackLocal(text){
   const idx=findMatch(text);if(idx<0)return;
   usedIdx.add(idx);currentStory=stories[idx];
   mem.totalAwakened++;
@@ -681,9 +709,115 @@ function sendText(){
   showStory(currentStory);
 }
 
+async function generateWithAI(text){
+  aiGenerating=true;
+  haptic('heavy');
+  switchTab('story');
+  showLoadingState();
+
+  const emotionVector=analyzeEmotion(text);
+  if(selEmotion>=0&&selEmotion<6)emotionVector[selEmotion]=Math.max(emotionVector[selEmotion],0.8);
+
+  try{
+    const res=await fetch(AI_CONFIG.apiUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({userText:text,emotionVector})
+    });
+
+    if(!res.ok)throw new Error('API error');
+
+    const reader=res.body.getReader();
+    const decoder=new TextDecoder();
+    let buffer='',fullContent='';
+
+    while(true){
+      const{done,value}=await reader.read();
+      if(done)break;
+      buffer+=decoder.decode(value,{stream:true});
+      const lines=buffer.split('\n');
+      buffer=lines.pop()||'';
+      for(const line of lines){
+        if(!line.startsWith('data: '))continue;
+        const data=line.slice(6);
+        if(data==='[DONE]')break;
+        try{
+          const parsed=JSON.parse(data);
+          if(parsed.error)throw new Error(parsed.error);
+          if(parsed.content){
+            fullContent+=parsed.content;
+            updateStreamingDisplay(fullContent);
+          }
+        }catch(e){if(e.message!=='[DONE]')console.warn(e);}
+      }
+    }
+
+    const story=parseAIResponse(fullContent);
+    if(story){
+      currentStory={her:{name:story.protagonist,year:story.year,region:story.region,quote:story.quote},narrative:{opening:story.opening,struggle:story.story,process:'',breakthrough:'',legacy:'',backToYou:story.backToYou},keywords:story.keywords||[]};
+      mem.totalAwakened++;
+      mem.entries.push({input:text,story:story.protagonist,quote:story.quote,backToYou:story.backToYou,time:new Date().toISOString()});
+      saveMem();
+      showStoryFinal(story);
+    }
+  }catch(e){
+    console.warn('AI failed, falling back:',e);
+    fallbackLocal(text);
+  }finally{
+    aiGenerating=false;
+  }
+}
+
+function parseAIResponse(content){
+  try{
+    const jsonMatch=content.match(/\{[\s\S]*\}/);
+    if(!jsonMatch)return null;
+    return JSON.parse(jsonMatch[0]);
+  }catch(e){return null;}
+}
+
 // ============================================================
-//  STORY DISPLAY
+//  STORY DISPLAY — STREAMING
 // ============================================================
+function showLoadingState(){
+  document.getElementById('s-name').textContent='';
+  document.getElementById('s-year').textContent='';
+  document.getElementById('s-quote').textContent='';
+  document.getElementById('s-narrative').innerHTML='<div class="ai-loading"><div class="ai-pulse"></div><div class="ai-loading-text">她正在跨越时空寻找回声…</div></div>';
+  document.getElementById('s-bty').textContent='';
+  document.getElementById('s-bty-card').classList.remove('visible');
+}
+
+function updateStreamingDisplay(content){
+  const narr=document.getElementById('s-narrative');
+  // Try to extract partial JSON for preview
+  const quoteM=content.match(/"quote"\s*:\s*"([^"]*?)"/);
+  const nameM=content.match(/"protagonist"\s*:\s*"([^"]*?)"/);
+  const storyM=content.match(/"story"\s*:\s*"([\s\S]*?)(?:"|$)/);
+
+  if(nameM)document.getElementById('s-name').textContent=nameM[1];
+  if(quoteM)document.getElementById('s-quote').textContent=`「${quoteM[1]}」`;
+
+  if(storyM){
+    const partial=storyM[1].replace(/\\n/g,'\n').replace(/\\"/g,'"');
+    narr.innerHTML=`<div class="narrative-part visible" style="opacity:0.8">${partial}<span class="typing-cursor">|</span></div>`;
+  }
+}
+
+function showStoryFinal(s){
+  document.getElementById('s-name').textContent=s.protagonist;
+  document.getElementById('s-year').textContent=`${s.year} · ${s.region||''}`;
+  document.getElementById('s-quote').textContent=`「${s.quote}」`;
+
+  const narr=document.getElementById('s-narrative');narr.innerHTML='';
+  const parts=[s.opening,s.story].filter(Boolean);
+  parts.forEach((t,i)=>{const p=document.createElement('div');p.className='narrative-part';p.textContent=t;narr.appendChild(p);setTimeout(()=>p.classList.add('visible'),200+i*600);});
+
+  const bty=document.getElementById('s-bty');bty.textContent=s.backToYou;
+  const btyCard=document.getElementById('s-bty-card');btyCard.classList.remove('visible');
+  setTimeout(()=>{btyCard.classList.add('visible');haptic('confirm');},200+parts.length*600+400);
+}
+
 function showStory(s){
   haptic('heavy');
   switchTab('story');
@@ -691,7 +825,7 @@ function showStory(s){
   document.getElementById('s-year').textContent=`${s.her.year} · ${s.her.region}`;
   document.getElementById('s-quote').textContent=`「${s.her.quote}」`;
   const narr=document.getElementById('s-narrative');narr.innerHTML='';
-  const parts=[s.narrative.opening,s.narrative.struggle,s.narrative.process,s.narrative.breakthrough,s.narrative.legacy];
+  const parts=[s.narrative.opening,s.narrative.struggle,s.narrative.process,s.narrative.breakthrough,s.narrative.legacy].filter(Boolean);
   parts.forEach((t,i)=>{const p=document.createElement('div');p.className='narrative-part';p.textContent=t;narr.appendChild(p);setTimeout(()=>p.classList.add('visible'),400+i*800);});
   const bty=document.getElementById('s-bty');bty.textContent=s.narrative.backToYou;
   const btyCard=document.getElementById('s-bty-card');btyCard.classList.remove('visible');
@@ -720,36 +854,82 @@ function renderCave(){
 }
 
 // ============================================================
-//  POSTER
+//  POSTER — 觉醒者风格（洞穴墨蓝 + 锈红 + 暖金）
 // ============================================================
 function generatePoster(){
   if(!currentStory)return;haptic('heavy');
   const c=document.getElementById('poster-canvas'),ctx=c.getContext('2d'),W=540,H=960;c.width=W;c.height=H;
-  // Warm gradient bg
-  const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#f5ebe0');bg.addColorStop(1,'#edd5bf');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
-  // Grain
-  for(let i=0;i<2000;i++){ctx.fillStyle=`rgba(0,0,0,${Math.random()*0.012})`;ctx.fillRect(Math.random()*W,Math.random()*H,1,1);}
-  // Gold line
-  ctx.strokeStyle='rgba(196,165,116,0.3)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(60,50);ctx.lineTo(W-60,50);ctx.stroke();ctx.beginPath();ctx.moveTo(60,H-50);ctx.lineTo(W-60,H-50);ctx.stroke();
-  // Title
-  ctx.font='700 28px "Noto Serif SC",serif';ctx.fillStyle='#2d2a26';ctx.textAlign='center';ctx.fillText('回声洞穴',W/2,100);
-  ctx.font='300 11px "Noto Sans SC",sans-serif';ctx.fillStyle='#8a8278';ctx.fillText('ECHO CAVE',W/2,120);
-  // Input
-  ctx.font='300 14px "LXGW WenKai",serif';ctx.fillStyle='#8a8278';ctx.fillText('我说：',W/2,175);
-  ctx.font='400 17px "LXGW WenKai",serif';ctx.fillStyle='#2d2a26';wrapText(ctx,`「${lastInput}」`,W/2,210,W-100,26);
-  // Dot
-  ctx.fillStyle='rgba(196,165,116,0.5)';ctx.beginPath();ctx.arc(W/2,280,3,0,Math.PI*2);ctx.fill();
-  // Name
-  ctx.font='700 22px "Noto Serif SC",serif';ctx.fillStyle='#2d2a26';ctx.fillText(`${currentStory.her.name}，${currentStory.her.year}年`,W/2,330);
-  // Quote
-  ctx.font='400 19px "LXGW WenKai",serif';ctx.fillStyle='#c87e6e';wrapText(ctx,`「${currentStory.her.quote}」`,W/2,375,W-100,28);
-  // BTY
-  ctx.font='400 14px "LXGW WenKai",serif';ctx.fillStyle='#555';wrapText(ctx,currentStory.narrative.backToYou,W/2,500,W-120,22);
-  // Footer
-  ctx.font='300 11px "Noto Sans SC",sans-serif';ctx.fillStyle='#aaa';ctx.fillText('打开回声洞穴，问她',W/2,H-75);ctx.font='300 10px "Noto Sans SC",sans-serif';ctx.fillStyle='#ccc';ctx.fillText('#回声洞穴 #女性故事 #'+currentStory.her.name,W/2,H-58);
+
+  // 洞穴深色背景渐变
+  const bg=ctx.createLinearGradient(0,0,0,H);
+  bg.addColorStop(0,'#1A1A2E');bg.addColorStop(0.6,'#16213E');bg.addColorStop(1,'#0F0F1A');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+
+  // 岩壁纹理（颗粒噪点）
+  for(let i=0;i<4000;i++){
+    const a=Math.random()*0.03;
+    ctx.fillStyle=`rgba(245,240,232,${a})`;
+    ctx.fillRect(Math.random()*W,Math.random()*H,1,1);
+  }
+
+  // 顶部光束（暖金光晕）
+  const beam=ctx.createRadialGradient(W/2,80,10,W/2,80,200);
+  beam.addColorStop(0,'rgba(232,213,183,0.12)');beam.addColorStop(1,'rgba(232,213,183,0)');
+  ctx.fillStyle=beam;ctx.fillRect(0,0,W,280);
+
+  // 声波同心圆装饰（淡金）
+  ctx.strokeStyle='rgba(232,213,183,0.06)';ctx.lineWidth=0.5;
+  for(let i=1;i<=5;i++){ctx.beginPath();ctx.arc(W/2,H*0.35,40*i,0,Math.PI*2);ctx.stroke();}
+
+  // 品牌标题
+  ctx.font='600 16px "Noto Serif SC",serif';ctx.fillStyle='rgba(245,240,232,0.5)';ctx.textAlign='center';
+  ctx.fillText('回声洞穴',W/2,80);
+  ctx.font='300 9px sans-serif';ctx.fillStyle='rgba(245,240,232,0.25)';
+  ctx.fillText('ECHO CAVE',W/2,98);
+
+  // 分割点
+  ctx.fillStyle='rgba(232,213,183,0.4)';ctx.beginPath();ctx.arc(W/2,130,2,0,Math.PI*2);ctx.fill();
+
+  // 用户输入
+  ctx.font='300 13px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.45)';
+  ctx.fillText('我说：',W/2,175);
+  ctx.font='400 17px "LXGW WenKai",serif';ctx.fillStyle='#F5F0E8';
+  wrapText(ctx,`「${lastInput}」`,W/2,210,W-100,28);
+
+  // 金色分割线
+  ctx.strokeStyle='rgba(232,213,183,0.2)';ctx.lineWidth=0.5;
+  ctx.beginPath();ctx.moveTo(W*0.2,310);ctx.lineTo(W*0.8,310);ctx.stroke();
+
+  // 觉醒者名字
+  ctx.font='500 14px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.5)';
+  ctx.fillText(`${currentStory.her.name}，${currentStory.her.year}`,W/2,355);
+
+  // 金句（锈红色，大字）
+  ctx.font='700 24px "Noto Serif SC",serif';ctx.fillStyle='#C45C3E';
+  const quoteY=wrapText(ctx,`「${currentStory.her.quote}」`,W/2,405,W-80,36);
+
+  // 回到你（暖金色，小字）
+  const btyStartY=Math.max(quoteY+60,520);
+  ctx.font='400 14px "LXGW WenKai",serif';ctx.fillStyle='rgba(245,240,232,0.55)';
+  wrapText(ctx,currentStory.narrative.backToYou,W/2,btyStartY,W-100,24);
+
+  // 底部声波水印
+  ctx.strokeStyle='rgba(232,213,183,0.04)';ctx.lineWidth=1;
+  for(let i=0;i<30;i++){
+    const x=W*0.15+i*(W*0.7/30);
+    const h2=8+Math.sin(i*0.5)*6;
+    ctx.beginPath();ctx.moveTo(x,H-100-h2);ctx.lineTo(x,H-100+h2);ctx.stroke();
+  }
+
+  // 底部文案
+  ctx.font='300 11px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.3)';
+  ctx.fillText('你的不安不是病，是你还活着的证据',W/2,H-65);
+  ctx.font='300 9px "Noto Sans SC",sans-serif';ctx.fillStyle='rgba(245,240,232,0.15)';
+  ctx.fillText('#回声洞穴 #觉醒者 #'+currentStory.her.name,W/2,H-45);
+
   document.getElementById('poster-img').src=c.toDataURL('image/png');document.getElementById('poster-overlay').classList.add('active');
 }
-function wrapText(ctx,text,x,y,mw,lh){let line='',cy=y;for(const ch of text.split('')){if(ctx.measureText(line+ch).width>mw){ctx.fillText(line,x,cy);line=ch;cy+=lh;}else line+=ch;}ctx.fillText(line,x,cy);}
+function wrapText(ctx,text,x,y,mw,lh){let line='',cy=y;for(const ch of text.split('')){if(ctx.measureText(line+ch).width>mw){ctx.fillText(line,x,cy);line=ch;cy+=lh;}else line+=ch;}ctx.fillText(line,x,cy);return cy;}
 function savePoster(){const a=document.createElement('a');a.download=`回声洞穴-${currentStory.her.name}.png`;a.href=document.getElementById('poster-canvas').toDataURL();a.click();haptic('confirm');}
 function closePoster(){document.getElementById('poster-overlay').classList.remove('active');}
 
