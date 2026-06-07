@@ -639,7 +639,9 @@ if(isWeChat&&(!WX_CONFIG.signatureUrl||!WX_CONFIG.appId)){
 //  AI CONFIG
 // ============================================================
 const AI_CONFIG={
-  apiUrl:'https://scintillating-youtiao-332c37.netlify.app/.netlify/functions/generate',
+  apiUrl:'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+  apiKey:'sk-6a2d8c03e93542e2a0d0949d27bdf157',
+  model:'qwen-turbo',
   enabled:true
 };
 
@@ -688,18 +690,39 @@ async function generateWithAI(text){
   const emotionVector=analyzeEmotion(text);
   if(selEmotion>=0&&selEmotion<6)emotionVector[selEmotion]=Math.max(emotionVector[selEmotion],0.8);
 
+  const dims=['愤怒','悲伤','希望','爱','困惑','反抗'];
+  const dominant=dims[emotionVector.indexOf(Math.max(...emotionVector))];
+
+  const systemPrompt=`你是"回声洞穴"的叙事者。根据用户困惑，讲一个真实女性历史人物的故事。
+输出严格JSON（不要代码块）：
+{"protagonist":"姓名","year":"年份","region":"地区","quote":"金句20字内","opening":"对用户说一句共鸣的话25字内","story":"故事150-250字","backToYou":"回应用户40字内","keywords":["词1","词2"]}
+规则：人物真实存在，故事基于真实事件，情感真挚不说教，中文输出。`;
+
+  const userPrompt=`用户困惑："${text}"\n主要情感：${dominant}\n请生成一个能回应她困惑的女性历史人物故事。`;
+
   try{
     const res=await fetch(AI_CONFIG.apiUrl,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({userText:text,emotionVector})
+      headers:{
+        'Content-Type':'application/json',
+        'Authorization':'Bearer '+AI_CONFIG.apiKey
+      },
+      body:JSON.stringify({
+        model:AI_CONFIG.model,
+        messages:[
+          {role:'system',content:systemPrompt},
+          {role:'user',content:userPrompt}
+        ],
+        temperature:0.85,
+        max_tokens:600
+      })
     });
 
-    if(!res.ok)throw new Error('API error');
+    if(!res.ok){const err=await res.text();throw new Error(err);}
     const data=await res.json();
-    if(data.error)throw new Error(data.error);
+    const content=data.choices?.[0]?.message?.content||'';
+    const story=parseAIResponse(content);
 
-    const story=parseAIResponse(data.content);
     if(story){
       currentStory={her:{name:story.protagonist,year:story.year,region:story.region,quote:story.quote},narrative:{opening:story.opening,struggle:story.story,process:'',breakthrough:'',legacy:'',backToYou:story.backToYou},keywords:story.keywords||[]};
       mem.totalAwakened++;
@@ -711,7 +734,8 @@ async function generateWithAI(text){
     }
   }catch(e){
     console.warn('AI failed, falling back:',e);
-    fallbackLocal(text);
+    document.getElementById('s-narrative').innerHTML='<div style="padding:20px;color:var(--accent);font-size:12px;word-break:break-all;">AI错误：'+e.message+'<br>正在使用本地故事...</div>';
+    setTimeout(()=>fallbackLocal(text),2000);
   }finally{
     aiGenerating=false;
   }
