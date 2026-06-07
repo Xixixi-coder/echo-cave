@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>回声洞穴 Echo Cave v9 — App Prototype</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=LXGW+WenKai:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 :root{
@@ -556,9 +557,38 @@ function pickEmotion(el){
 }
 
 // ============================================================
-//  VOICE
+//  WECHAT JS-SDK CONFIG
 // ============================================================
 const isWeChat=/MicroMessenger/i.test(navigator.userAgent);
+let wxReady=false;
+
+// ⚠️ 配置项：替换为你的公众号信息
+const WX_CONFIG={
+  signatureUrl:'', // 你的签名接口地址，如 https://your-worker.workers.dev/wx-sign
+  appId:''         // 你的公众号 appId
+};
+
+if(isWeChat&&WX_CONFIG.signatureUrl&&WX_CONFIG.appId){
+  fetch(WX_CONFIG.signatureUrl+'?url='+encodeURIComponent(location.href.split('#')[0]))
+    .then(r=>r.json())
+    .then(data=>{
+      wx.config({
+        debug:false,
+        appId:WX_CONFIG.appId,
+        timestamp:data.timestamp,
+        nonceStr:data.nonceStr,
+        signature:data.signature,
+        jsApiList:['startRecord','stopRecord','translateVoice']
+      });
+      wx.ready(()=>{wxReady=true;console.log('WeChat JS-SDK ready');});
+      wx.error(err=>{console.warn('WeChat JS-SDK error',err);});
+    })
+    .catch(e=>console.warn('WeChat sign fetch failed',e));
+}
+
+// ============================================================
+//  VOICE
+// ============================================================
 let recognition=null;
 if(!isWeChat&&('webkitSpeechRecognition' in window||'SpeechRecognition' in window)){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -566,21 +596,64 @@ if(!isWeChat&&('webkitSpeechRecognition' in window||'SpeechRecognition' in windo
   recognition.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;document.getElementById('text-input').value=t;};
   recognition.onend=()=>{if(isRec)stopVoiceInt();};
 }
-// 微信环境：隐藏语音按钮，提示用键盘语音输入
-if(isWeChat){
-  document.addEventListener('DOMContentLoaded',()=>{
-    const vArea=document.querySelector('.ask-voice-area');
-    if(vArea)vArea.innerHTML='<div style="text-align:center;padding:16px 0;"><div style="font-size:36px;margin-bottom:8px;">⌨️</div><div style="font-size:13px;color:var(--text-sub);font-family:var(--font-wen);line-height:1.8;">微信内请使用键盘语音输入<br><span style="font-size:11px;color:var(--text-light);">点击输入框 → 长按键盘🎙️图标</span></div></div>';
-  });
-}
+
+let wxLocalId=null;
+
 function startVoice(e){
-  e.preventDefault();
-  if(isWeChat){document.getElementById('text-input').focus();return;}
-  isRec=true;haptic('light');document.getElementById('voice-btn').classList.add('recording');document.getElementById('voice-icon').textContent='🔴';document.getElementById('voice-hint').textContent='她在听……松开发送';if(recognition)recognition.start();
+  e.preventDefault();isRec=true;haptic('light');
+  document.getElementById('voice-btn').classList.add('recording');
+  document.getElementById('voice-icon').textContent='🔴';
+  document.getElementById('voice-hint').textContent='她在听……松开发送';
+
+  if(isWeChat){
+    if(wxReady){
+      wx.startRecord();
+    } else {
+      document.getElementById('voice-hint').textContent='请配置公众号后使用语音';
+      isRec=false;
+      document.getElementById('voice-btn').classList.remove('recording');
+      document.getElementById('voice-icon').textContent='🎙️';
+    }
+  } else if(recognition){
+    recognition.start();
+  }
 }
-function stopVoice(e){e.preventDefault();if(isWeChat)return;stopVoiceInt();}
-function stopVoiceInt(){isRec=false;haptic('confirm');document.getElementById('voice-btn').classList.remove('recording');document.getElementById('voice-icon').textContent='🎙️';document.getElementById('voice-hint').textContent='按住说话，让她听见';if(recognition)try{recognition.stop();}catch(e){}
+
+function stopVoice(e){
+  e.preventDefault();
+  if(isWeChat&&wxReady&&isRec){
+    wx.stopRecord({
+      success:function(res){
+        wxLocalId=res.localId;
+        wx.translateVoice({
+          localId:wxLocalId,
+          isShowProgressTips:1,
+          success:function(tRes){
+            let txt=tRes.translateResult.replace(/。$/,'');
+            document.getElementById('text-input').value=txt;
+            stopVoiceInt();
+          },
+          fail:function(){stopVoiceInt();}
+        });
+      },
+      fail:function(){stopVoiceInt();}
+    });
+  } else {
+    stopVoiceInt();
+  }
+}
+
+function stopVoiceInt(){isRec=false;haptic('confirm');document.getElementById('voice-btn').classList.remove('recording');document.getElementById('voice-icon').textContent='🎙️';document.getElementById('voice-hint').textContent='按住说话，让她听见';
+  if(!isWeChat&&recognition)try{recognition.stop();}catch(e){}
   const t=document.getElementById('text-input').value.trim();if(t)setTimeout(()=>sendText(),300);
+}
+
+// 微信环境下未配置时的提示
+if(isWeChat&&(!WX_CONFIG.signatureUrl||!WX_CONFIG.appId)){
+  document.addEventListener('DOMContentLoaded',()=>{
+    const hint=document.getElementById('voice-hint');
+    if(hint)hint.innerHTML='语音需配置公众号 · 可用键盘🎙️输入';
+  });
 }
 
 // ============================================================
