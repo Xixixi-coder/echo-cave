@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>回声洞穴 Echo Cave v8.0 — 涟漪引擎</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;400;600;700;900&family=Noto+Sans+SC:wght@300;400;500&family=LXGW+WenKai:wght@300;400&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --cave-bg: #060610;
+  --gold: #e8d5a8;
+  --gold-bright: #f0e6d2;
+  --gold-hot: #ffd700;
+  --accent: #c75b5b;
+  --gentle: #b8a9d4;
+  --font-serif: 'Noto Serif SC', serif;
+  --font-sans: 'Noto Sans SC', sans-serif;
+  --font-wen: 'LXGW WenKai', serif;
+  --safe-top: env(safe-area-inset-top, 20px);
+  --safe-bottom: env(safe-area-inset-bottom, 20px);
+}
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  background:var(--cave-bg); font-family:var(--font-sans);
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+
+/* === LAYER STACK === */
+canvas#ripple-canvas { position:fixed; inset:0; z-index:50; pointer-events:none; }
+canvas#particles    { position:fixed; inset:0; z-index:2; pointer-events:none; }
+
+/* === AURORA === */
+.aurora-layer { position:fixed; inset:0; z-index:1; pointer-events:none; overflow:hidden; }
+.aurora-blob { position:absolute; border-radius:50%; filter:blur(80px); mix-blend-mode:screen; will-change:transform; }
+.aurora-blob:nth-child(1){ width:60vw;height:60vw; background:radial-gradient(circle,rgba(232,213,168,0.07) 0%,transparent 70%); top:10%;left:-10%; animation:af1 18s ease-in-out infinite alternate; }
+.aurora-blob:nth-child(2){ width:50vw;height:50vw; background:radial-gradient(circle,rgba(184,169,212,0.05) 0%,transparent 70%); top:50%;right:-15%; animation:af2 22s ease-in-out infinite alternate; }
+.aurora-blob:nth-child(3){ width:45vw;height:45vw; background:radial-gradient(circle,rgba(199,91,91,0.04) 0%,transparent 70%); bottom:5%;left:20%; animation:af3 25s ease-in-out infinite alternate; }
+@keyframes af1{0%{transform:translate(0,0) scale(1)}100%{transform:translate(15vw,10vh) scale(1.3)}}
+@keyframes af2{0%{transform:translate(0,0) scale(1)}100%{transform:translate(-20vw,-15vh) scale(1.2)}}
+@keyframes af3{0%{transform:translate(0,0) scale(1)}100%{transform:translate(10vw,-20vh) scale(1.4)}}
+
+/* === SVG CAVE === */
+.cave-formations { position:fixed; inset:0; z-index:3; pointer-events:none; }
+.cave-formations svg { width:100%; height:100%; }
+
+/* === SCREENS === */
+.screen {
+  position:fixed; inset:0; z-index:10;
+  display:flex; flex-direction:column;
+  opacity:0; pointer-events:none;
+  transition: opacity 0.8s cubic-bezier(0.4,0,0.2,1), transform 0.8s cubic-bezier(0.4,0,0.2,1);
+  transform: translateY(20px) scale(0.98);
+}
+.screen.active { opacity:1; pointer-events:all; transform:translateY(0) scale(1); }
+
+/* === INTRO === */
+#screen-intro { z-index:100; align-items:center; justify-content:center; }
+.intro-breath {
+  width:14px; height:14px; border-radius:50%; background:var(--gold);
+  box-shadow: 0 0 20px rgba(232,213,168,0.4), 0 0 60px rgba(232,213,168,0.15);
+  animation: breathGlow 4s ease-in-out infinite; margin-bottom:56px;
+}
+@keyframes breathGlow {
+  0%,100%{opacity:.15;transform:scale(1);box-shadow:0 0 20px rgba(232,213,168,.2),0 0 40px rgba(232,213,168,.05)}
+  50%{opacity:.9;transform:scale(2);box-shadow:0 0 30px rgba(232,213,168,.5),0 0 80px rgba(232,213,168,.2),0 0 120px rgba(232,213,168,.08)}
+}
+#screen-intro .line {
+  font-family:var(--font-serif); font-size:19px; font-weight:400;
+  color:var(--gold-bright); letter-spacing:3px; text-align:center;
+  margin:10px 0; opacity:0; transform:translateY(16px);
+  transition:all 1.2s cubic-bezier(.25,.46,.45,.94);
+  text-shadow:0 0 20px rgba(232,213,168,.15);
+}
+#screen-intro .line.visible { opacity:1; transform:translateY(0); }
+#screen-intro .line.self { color:var(--gentle); font-style:italic; font-weight:200; }
+#screen-intro .line.glow-text {
+  background:linear-gradient(135deg,#e8d5a8,#b8a9d4,#e8d5a8,#ffd700);
+  background-size:300% 300%;
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent;
+  animation:shimmer 6s ease-in-out infinite; text-shadow:none;
+}
+@keyframes shimmer{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+.enter-btn {
+  margin-top:60px; padding:15px 44px; border-radius:30px;
+  border:1px solid rgba(232,213,168,.15);
+  background:rgba(232,213,168,.04);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  color:var(--gold); font-size:15px; font-family:var(--font-wen);
+  cursor:pointer; opacity:0; transition:all .6s;
+}
+.enter-btn.visible { opacity:1; }
+.enter-btn:active { transform:scale(.93); background:rgba(232,213,168,.1); }
+
+/* === HINT OVERLAY (涟漪提示) === */
+.ripple-hint-overlay {
+  position:fixed; inset:0; z-index:90;
+  display:flex; align-items:center; justify-content:center; flex-direction:column;
+  pointer-events:none; opacity:0; transition:opacity 1s;
+}
+.ripple-hint-overlay.visible { opacity:1; }
+.ripple-hint-text {
+  font-family:var(--font-wen); font-size:15px; color:rgba(232,213,168,.4);
+  letter-spacing:2px; animation:hintPulse 3s ease-in-out infinite;
+}
+@keyframes hintPulse { 0%,100%{opacity:.3} 50%{opacity:.7} }
+.ripple-hint-hand {
+  margin-top:20px; font-size:32px; opacity:.3;
+  animation:hintBounce 2s ease-in-out infinite;
+}
+@keyframes hintBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+
+/* === ASK SCREEN === */
+#screen-ask { padding:calc(var(--safe-top) + 16px) 20px calc(var(--safe-bottom) + 16px); }
+.ask-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+.ask-header .status { font-size:11px; color:rgba(232,213,168,.5); letter-spacing:1px; }
+.ask-header .cave-btn {
+  font-size:12px; color:rgba(232,213,168,.5); padding:6px 14px;
+  border:1px solid rgba(232,213,168,.08); border-radius:16px;
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  background:rgba(232,213,168,.03);
+}
+.ask-center { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+
+/* Voice btn */
+.voice-area { display:flex; flex-direction:column; align-items:center; margin-bottom:44px; }
+.voice-btn {
+  width:110px; height:110px; border-radius:50%;
+  background:radial-gradient(circle at 40% 35%,rgba(232,213,168,.12) 0%,rgba(232,213,168,.03) 100%);
+  border:1.5px solid rgba(232,213,168,.15);
+  display:flex; align-items:center; justify-content:center;
+  position:relative;
+  box-shadow:0 0 40px rgba(232,213,168,.05),inset 0 0 30px rgba(232,213,168,.03);
+  transition:all .4s;
+}
+.voice-btn::before {
+  content:''; position:absolute; inset:-8px; border-radius:50%;
+  border:1px solid rgba(232,213,168,.06);
+  animation:ringPulse 3s ease-in-out infinite;
+}
+@keyframes ringPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.15);opacity:.3}}
+.voice-btn.recording {
+  background:radial-gradient(circle at 40% 35%,rgba(199,91,91,.18) 0%,rgba(199,91,91,.04) 100%);
+  border-color:rgba(199,91,91,.4);
+  box-shadow:0 0 50px rgba(199,91,91,.15),inset 0 0 30px rgba(199,91,91,.05);
+  animation:pulseRec 1.5s ease-in-out infinite;
+}
+@keyframes pulseRec{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.voice-btn-text { font-family:var(--font-wen); font-size:14px; color:var(--gold); }
+.voice-btn.recording .voice-btn-text { color:var(--accent); }
+.voice-hint { margin-top:18px; font-size:12px; color:rgba(232,213,168,.35); font-family:var(--font-wen); letter-spacing:1px; }
+
+/* Waveform */
+.waveform { display:flex; align-items:center; justify-content:center; gap:3px; height:44px; margin-bottom:24px; }
+.wave-bar { width:3px; border-radius:2px; background:linear-gradient(to top,rgba(232,213,168,.3),var(--gold)); transition:height .08s ease; }
+
+/* Glass input */
+.text-input-area {
+  width:100%; max-width:360px;
+  display:flex; align-items:center; gap:10px; padding:6px;
+  background:rgba(255,255,255,.02);
+  backdrop-filter:blur(20px) saturate(150%); -webkit-backdrop-filter:blur(20px) saturate(150%);
+  border:1px solid rgba(232,213,168,.06); border-radius:28px;
+  box-shadow:0 4px 24px rgba(0,0,0,.3),inset 0 1px 0 rgba(232,213,168,.04);
+}
+.text-input-area input {
+  flex:1; padding:13px 18px; background:transparent; border:none;
+  color:var(--gold-bright); font-size:15px; font-family:var(--font-sans); outline:none;
+}
+.text-input-area input::placeholder { color:rgba(232,213,168,.2); }
+.text-input-area .send-btn {
+  width:38px; height:38px; border-radius:50%; border:none;
+  background:linear-gradient(135deg,rgba(232,213,168,.12),rgba(232,213,168,.06));
+  color:var(--gold); font-size:16px;
+  display:flex; align-items:center; justify-content:center;
+  transition:all .2s;
+}
+.text-input-area .send-btn:active { background:rgba(232,213,168,.2); transform:scale(.92); }
+
+/* Guide */
+.guide-words { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:28px; max-width:320px; }
+.guide-word {
+  padding:7px 16px; border-radius:18px;
+  border:1px solid rgba(232,213,168,.06);
+  background:rgba(232,213,168,.02);
+  color:rgba(232,213,168,.45); font-size:13px; font-family:var(--font-wen);
+  transition:all .3s;
+}
+.guide-word:active { background:rgba(232,213,168,.1); color:var(--gold); transform:scale(.95); }
+
+/* === STORY EMERGENCE (from ripple center) === */
+.story-emergence {
+  position:fixed; z-index:80; pointer-events:none; opacity:0;
+  transition:opacity .6s;
+}
+.story-emergence.active { opacity:1; pointer-events:all; }
+
+/* Glow point at ripple center */
+.emergence-glow {
+  position:absolute; width:16px; height:16px; border-radius:50%;
+  background:var(--gold);
+  box-shadow:0 0 20px rgba(232,213,168,.6),0 0 60px rgba(232,213,168,.3),0 0 100px rgba(232,213,168,.1);
+  transform:translate(-50%,-50%) scale(0);
+  animation:glowBirth 1s cubic-bezier(.34,1.56,.64,1) forwards;
+}
+@keyframes glowBirth {
+  0%{transform:translate(-50%,-50%) scale(0);opacity:0}
+  60%{transform:translate(-50%,-50%) scale(2);opacity:1}
+  100%{transform:translate(-50%,-50%) scale(1);opacity:.8}
+}
+
+/* Card bloom from glow */
+.emergence-card {
+  position:fixed; left:5vw; right:5vw; top:8vh; bottom:8vh;
+  background:rgba(10,10,20,.92);
+  backdrop-filter:blur(30px) saturate(180%); -webkit-backdrop-filter:blur(30px) saturate(180%);
+  border:1px solid rgba(232,213,168,.08);
+  border-radius:24px;
+  box-shadow:0 20px 80px rgba(0,0,0,.5),0 0 60px rgba(232,213,168,.03);
+  padding:28px 24px;
+  overflow-y:auto; -webkit-overflow-scrolling:touch;
+  transform:scale(0); opacity:0;
+  transition:transform .8s cubic-bezier(.34,1.56,.64,1), opacity .6s;
+}
+.emergence-card.bloom { transform:scale(1); opacity:1; }
+
+.emergence-card .story-quote {
+  font-family:var(--font-serif); font-size:22px; font-weight:700;
+  text-align:center; line-height:1.7; margin-bottom:10px;
+  background:linear-gradient(135deg,#f0e6d2,#ffd700,#e8d5a8,#b8a9d4);
+  background-size:200% 200%;
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent;
+  animation:shimmer 8s ease-in-out infinite;
+  filter:drop-shadow(0 0 12px rgba(232,213,168,.2));
+}
+.emergence-card .story-author {
+  font-size:12px; color:rgba(232,213,168,.35); text-align:center; margin-bottom:32px; letter-spacing:1px;
+}
+.emergence-card .story-narrative {
+  font-family:var(--font-wen); font-size:15px;
+  color:rgba(240,230,210,.78); line-height:2.1;
+}
+.emergence-card .story-narrative p {
+  margin-bottom:16px; opacity:0; transform:translateY(12px);
+  transition:all 1s cubic-bezier(.25,.46,.45,.94);
+}
+.emergence-card .story-narrative p.visible { opacity:1; transform:translateY(0); }
+.emergence-card .story-narrative p:first-child { font-style:italic; color:rgba(184,169,212,.7); }
+
+.emergence-card .story-back-to-you {
+  font-family:var(--font-wen); font-size:15px;
+  color:var(--gentle); font-style:italic; line-height:1.9;
+  margin-top:24px; padding:20px;
+  background:linear-gradient(135deg,rgba(184,169,212,.06) 0%,rgba(184,169,212,.02) 100%);
+  border-radius:16px; border-left:3px solid rgba(184,169,212,.25);
+  opacity:0; transform:translateY(12px);
+  transition:all 1s cubic-bezier(.25,.46,.45,.94);
+}
+.emergence-card .story-back-to-you.visible { opacity:1; transform:translateY(0); }
+
+.emergence-card .story-actions {
+  display:flex; justify-content:center; gap:16px; margin-top:24px; padding-top:16px;
+  border-top:1px solid rgba(232,213,168,.06);
+}
+.emergence-card .story-action {
+  padding:10px 24px; border-radius:22px;
+  border:1px solid rgba(232,213,168,.08);
+  background:rgba(232,213,168,.03); color:rgba(232,213,168,.55);
+  font-size:13px; font-family:var(--font-wen); cursor:pointer; transition:all .3s;
+}
+.emergence-card .story-action:active { background:rgba(232,213,168,.1); color:var(--gold); }
+.emergence-card .story-action.primary { background:rgba(232,213,168,.08); border-color:rgba(232,213,168,.15); color:var(--gold); }
+
+/* === CAVE SCREEN === */
+#screen-cave { padding:calc(var(--safe-top) + 16px) 20px calc(var(--safe-bottom) + 16px); overflow-y:auto; -webkit-overflow-scrolling:touch; }
+.cave-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; }
+.cave-header h2 {
+  font-family:var(--font-serif); font-size:24px; font-weight:700;
+  background:linear-gradient(135deg,#e8d5a8,#ffd700);
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+}
+.cave-header .close-btn { font-size:13px; color:rgba(232,213,168,.4); padding:8px; cursor:pointer; }
+.cave-stats { display:flex; gap:24px; margin-bottom:28px; }
+.cave-stat { text-align:center; }
+.cave-stat .num { font-size:32px; font-weight:700; font-family:var(--font-serif); background:linear-gradient(180deg,var(--gold-bright),var(--gold)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.cave-stat .label { font-size:11px; color:rgba(232,213,168,.35); margin-top:4px; }
+.cave-section { margin-bottom:28px; }
+.cave-section h3 { font-size:13px; color:rgba(232,213,168,.4); margin-bottom:12px; letter-spacing:2px; }
+.cave-entry {
+  padding:16px 18px;
+  background:rgba(255,255,255,.015);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border-left:2px solid rgba(232,213,168,.12);
+  margin-bottom:10px; border-radius:0 14px 14px 0;
+}
+.cave-entry .input { font-size:14px; color:rgba(232,213,168,.65); margin-bottom:6px; }
+.cave-entry .response { font-size:12px; color:var(--gentle); font-style:italic; line-height:1.6; }
+.cave-entry .time { font-size:10px; color:rgba(255,255,255,.15); margin-top:8px; }
+
+/* === POSTER === */
+#poster-canvas { display:none; }
+#poster-overlay { position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.92); display:none; align-items:center; justify-content:center; flex-direction:column; padding:20px; backdrop-filter:blur(20px); }
+#poster-overlay.active { display:flex; }
+#poster-overlay img { max-width:280px; max-height:500px; border-radius:12px; box-shadow:0 12px 60px rgba(0,0,0,.5); }
+#poster-overlay .poster-btn { margin-top:24px; padding:10px 26px; border-radius:22px; border:1px solid rgba(232,213,168,.15); background:rgba(232,213,168,.06); color:var(--gold); font-size:14px; cursor:pointer; }
+#poster-overlay .close-poster { margin-top:18px; color:rgba(232,213,168,.3); font-size:12px; cursor:pointer; }
+
+/* Sound toggle */
+.sound-toggle {
+  position:fixed; top:calc(var(--safe-top) + 12px); right:16px; z-index:150;
+  width:32px; height:32px; border-radius:50%;
+  background:rgba(232,213,168,.05); border:1px solid rgba(232,213,168,.1);
+  display:flex; align-items:center; justify-content:center;
+  font-size:14px; color:rgba(232,213,168,.4); cursor:pointer; transition:all .3s;
+}
+.sound-toggle.active { color:var(--gold); background:rgba(232,213,168,.1); }
+</style>
+</head>
+<body>
+
+<div class="aurora-layer"><div class="aurora-blob"></div><div class="aurora-blob"></div><div class="aurora-blob"></div></div>
+<canvas id="particles"></canvas>
+
+<!-- RIPPLE ENGINE CANVAS — the soul -->
+<canvas id="ripple-canvas"></canvas>
+
+<div class="cave-formations">
+  <svg viewBox="0 0 400 800" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(232,213,168,0.06)"/><stop offset="100%" stop-color="transparent"/></linearGradient></defs>
+    <path d="M0,0 Q20,60 10,120 Q5,150 15,180 L0,180 Z" fill="url(#sg)" opacity=".5"><animate attributeName="d" dur="12s" repeatCount="indefinite" values="M0,0 Q20,60 10,120 Q5,150 15,180 L0,180 Z;M0,0 Q25,50 12,110 Q8,155 18,185 L0,185 Z;M0,0 Q20,60 10,120 Q5,150 15,180 L0,180 Z"/></path>
+    <path d="M400,0 Q380,70 390,140 Q395,170 385,200 L400,200 Z" fill="url(#sg)" opacity=".4"><animate attributeName="d" dur="15s" repeatCount="indefinite" values="M400,0 Q380,70 390,140 Q395,170 385,200 L400,200 Z;M400,0 Q375,65 388,135 Q393,175 382,210 L400,210 Z;M400,0 Q380,70 390,140 Q395,170 385,200 L400,200 Z"/></path>
+  </svg>
+</div>
+
+<div class="sound-toggle" id="sound-toggle" onclick="toggleSound()">♪</div>
+
+<!-- Ripple hint -->
+<div class="ripple-hint-overlay" id="ripple-hint">
+  <div class="ripple-hint-text">触碰屏幕，让你的问题在洞穴中回荡</div>
+  <div class="ripple-hint-hand">👆</div>
+</div>
+
+<!-- INTRO -->
+<div class="screen active" id="screen-intro">
+  <div class="intro-breath"></div>
+  <div class="line" id="l1">这是一个洞穴。</div>
+  <div class="line glow-text" id="l2">你的困惑，她懂。</div>
+  <div class="line self" id="l3">触碰屏幕，让涟漪传达你的问题。</div>
+  <div class="line self" id="l4">她们的故事，会从涟漪中浮现。</div>
+  <button class="enter-btn" id="enter-btn" onclick="enterCave()">进入洞穴</button>
+</div>
+
+<!-- ASK -->
+<div class="screen" id="screen-ask">
+  <div class="ask-header">
+    <div class="status">已唤醒 <span id="awaken-count">0</span> 个声音</div>
+    <div class="cave-btn" onclick="showCave()">我的洞穴</div>
+  </div>
+  <div class="ask-center">
+    <div class="waveform" id="waveform" style="display:none">
+      <div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div>
+      <div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div>
+      <div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div><div class="wave-bar" style="height:10px"></div>
+    </div>
+    <div class="voice-area">
+      <div class="voice-btn" id="voice-btn" ontouchstart="startVoice(event)" ontouchend="stopVoice(event)" onmousedown="startVoice(event)" onmouseup="stopVoice(event)">
+        <span class="voice-btn-text" id="voice-text">按住说话</span>
+      </div>
+      <div class="voice-hint" id="voice-hint">拇指按住，开口问她</div>
+    </div>
+    <div class="text-input-area">
+      <input type="text" id="text-input" placeholder="打字问她，然后触碰屏幕..." onkeydown="if(event.key==='Enter')sendText()">
+      <button class="send-btn" onclick="sendText()">↑</button>
+    </div>
+    <div class="guide-words" id="guide-words"></div>
+  </div>
+</div>
+
+<!-- STORY EMERGENCE (rendered from ripple center) -->
+<div class="story-emergence" id="story-emergence">
+  <div class="emergence-glow" id="emergence-glow"></div>
+  <div class="emergence-card" id="emergence-card">
+    <div class="story-quote" id="story-quote"></div>
+    <div class="story-author" id="story-author"></div>
+    <div class="story-narrative" id="story-narrative"></div>
+    <div class="story-back-to-you" id="story-back-to-you"></div>
+    <div class="story-actions">
+      <div class="story-action" onclick="dismissStory()">继续问她</div>
+      <div class="story-action primary" onclick="generatePoster()">生成海报</div>
+    </div>
+  </div>
+</div>
+
+<!-- CAVE -->
+<div class="screen" id="screen-cave">
+  <div class="cave-header"><h2>我的洞穴</h2><div class="close-btn" onclick="hideCave()">关闭</div></div>
+  <div class="cave-stats" id="cave-stats"></div>
+  <div id="cave-entries"></div>
+</div>
+
+<!-- POSTER -->
+<div id="poster-overlay">
+  <img id="poster-img" src="">
+  <div class="poster-btn" onclick="savePoster()">保存图片</div>
+  <div class="close-poster" onclick="closePoster()">关闭</div>
+</div>
+<canvas id="poster-canvas" width="540" height="960"></canvas>
+
+<script>
+// ============================================================
+//  STORIES DATA
+// ============================================================
+const stories=[{id:"s001",her:{name:"林徽因",year:1924,region:"中国",quote:"如果他们能看到我画的图，就不会说'不适合'了。"},narrative:{opening:"你提到的这种「同样努力，不同结果」的感受……",struggle:"1924年，宾夕法尼亚大学建筑系不收女生。林徽因以优等成绩入学，却只能注册在美术系。",process:"她没有接受这个「不适合」。每天旁听建筑课，作业比正式学生交得还多。教授看到她的图纸时沉默了很久。",breakthrough:"两年后，她以旁听生身份成为建筑系助教。后来回到中国，参与设计了人民英雄纪念碑。",legacy:"她证明了「不适合」三个字，可以被一张又一张图纸覆盖。",backToYou:"你的不甘，她在一百年前就感受过。它不是矫情，是清醒。"},emotionVector:[.3,.4,.3,.1,.5,.5],keywords:["考试","努力","机会","不适合","建筑","学习","不公平","男生"]},{id:"s002",her:{name:"张桂梅",year:2008,region:"中国",quote:"我们生来就是高山而非溪流。"},narrative:{opening:"你说的那种「想改变但没有资源」的感觉……",struggle:"2008年，华坪女子高中创办时只有一栋教学楼，连围墙都没有。100个学生，6个老师，没人相信这所学校能活过一年。",process:"张桂梅每天五点起床，挨家挨户劝说家长让女儿上学。被拒绝了无数次，被骂过、被狗追过。",breakthrough:"十五年后，这所学校送了2000多个女孩进入大学。她们中有人成了医生，有人成了律师，有人回到山里当了老师。",legacy:"她用一个人的意志，撬动了一座山的命运。",backToYou:"你觉得自己改变不了什么？她当年也是从「一个人」开始的。"},emotionVector:[.1,.2,.8,.3,.1,.5],keywords:["改变","资源","教育","坚持","女孩","山区","希望","一个人"]},{id:"s003",her:{name:"伍尔夫",year:1929,region:"英国",quote:"一个女人如果要写小说，她必须有钱，还要有一间自己的房间。"},narrative:{opening:"你说你需要自己的空间……",struggle:"1929年的英国，女人没有独立财产权。伍尔夫的姑母去世后留给她500英镑年金——这是她第一次拥有不依附于任何人的钱。",process:"她发现自己能写作了。不是因为突然有了才华，而是因为终于不需要先做完家务、先取悦丈夫、先证明自己配得上那张书桌。",breakthrough:"她写出了《到灯塔去》《达洛维夫人》，成为现代主义文学的核心人物。",legacy:"她证明了：创造力不是天赋问题，是条件问题。",backToYou:"你需要的不是更多努力，是属于自己的一间房间。这不是奢侈，是基本需求。"},emotionVector:[.2,.3,.4,.1,.4,.4],keywords:["空间","写作","自己的","独立","房间","钱","创作","时间"]},{id:"s004",her:{name:"刘小样",year:2001,region:"中国",quote:"我宁可痛苦，也不要麻木。"},narrative:{opening:"你说你觉得日子在重复，好像活着也没什么意思……",struggle:"2001年，陕西农村，刘小样是一个普通的农妇。她每天的生活是做饭、喂猪、带孩子。村里人觉得她该知足。",process:"但她整夜整夜睡不着。她说「我不甘心，我就觉得外面有更大的世界，但我走不出去。」她买了一台收音机，偷偷给央视写信。",breakthrough:"《半边天》栏目来找到了她。她在镜头前说出了那句话：「我宁可痛苦，也不要麻木。」全国数百万女性看到了自己。",legacy:"她没有逃离村庄。但她选择了不麻木，这本身就是一种反抗。",backToYou:"你的不安、你的不甘——不是病，是你还活着的证据。"},emotionVector:[.2,.6,.2,.1,.7,.4],keywords:["麻木","重复","意义","困住","不甘","活着","无聊","日子"]},{id:"s005",her:{name:"波伏娃",year:1949,region:"法国",quote:"女人不是天生的，而是后天形成的。"},narrative:{opening:"你问为什么你总是被要求成为某种样子……",struggle:"1949年的法国，「好女人」的定义是：温顺、美丽、服从。波伏娃拿到了哲学教师资格，在整个法国排名第二。",process:"她花了两年写《第二性》。出版后被骂「疯女人」「荡妇」。梵蒂冈把这本书列为禁书。",breakthrough:"这本书被翻译成40种语言，影响了此后70年的女性运动。她让无数女性第一次意识到：我的处境不是自然的，是被构建的。",legacy:"她给了所有不适应「好女人」剧本的人一个答案：不是你有问题，是剧本有问题。",backToYou:"你不必成为任何人期待的样子。你已经是你自己了。"},emotionVector:[.3,.2,.3,0,.5,.8],keywords:["为什么","应该","要求","定义","女人","角色","期待","规矩"]},{id:"s006",her:{name:"上野千鹤子",year:2019,region:"日本",quote:"我不是在抱怨，我是在描述。"},narrative:{opening:"你觉得自己一说不满就被当成「太敏感了」……",struggle:"2019年东京大学开学典礼。上野千鹤子站在台上，面对一群刚考进顶尖大学的18岁年轻人。",process:"她说：「你们能来到这里，不仅因为你们努力，也因为环境允许你们努力。有无数和你们一样聪明的女性，从来没有获得过这个机会。」",breakthrough:"这段演讲被翻译成十几种语言。她没有喊口号，只是平静地描述事实——但事实本身就是最锋利的武器。",legacy:"她教会我们：说出真实不是抱怨。看见不公不是敏感。描述现实本身就是改变的开始。",backToYou:"你不是太敏感。你只是比周围的人醒得早了一点。"},emotionVector:[.3,.2,.2,0,.4,.6],keywords:["敏感","抱怨","不满","不公","看见","说出来","描述","真实"]},{id:"s007",her:{name:"萧红",year:1936,region:"中国",quote:"我要用自己的头脑做武器，在这艰难的世上开辟出一条路来。"},narrative:{opening:"你说你想逃离现在的环境，但不知道逃出去能不能活……",struggle:"1932年，萧红从家里逃出来，身无分文，怀着孕，在哈尔滨的旅馆里被困了半年——因为交不起房费。",process:"她开始写。没有纸就写在包装纸上，没有笔就借服务生的。她把自己的饥饿、恐惧、绝望全都写进了字里。",breakthrough:"《生死场》出版时她25岁。鲁迅亲自作序，说她是「中国最有前途的女作家」。",legacy:"她只活了31年。但她证明了：一个没有任何依靠的女人，也能用文字为自己开辟一条路。",backToYou:"逃离不是懦弱。你想走，是因为你知道有更好的可能。相信那个直觉。"},emotionVector:[.2,.5,.3,.1,.3,.6],keywords:["逃离","逃跑","离开","环境","活下去","害怕","出走","自由"]},{id:"s008",her:{name:"金斯伯格",year:1993,region:"美国",quote:"我不是在寻求特权，我是在寻求平等。"},narrative:{opening:"你在争取属于自己的东西时，被说「要求太多了」……",struggle:"1956年，哈佛法学院500人中有9个女性。院长问她们：「你们为什么要占男人的位置？」",process:"她以全班第一名毕业，却没有一家律所愿意雇佣她——因为是女性。她转向学术，然后从法律内部改变法律。",breakthrough:"她作为律师打赢了6起最高法院性别平等案件。后来成为大法官，用判决书改写了美国女性的权利版图。",legacy:"她用了一生证明：争取平等不是「要太多」，而是在争取本该属于每个人的东西。",backToYou:"你不是要求太多。你只是在要求那些本来就该是你的东西。"},emotionVector:[.3,.1,.4,0,.2,.8],keywords:["争取","平等","要求","公平","权利","太多","不配","应得"]},{id:"s009",her:{name:"张爱玲",year:1943,region:"中国",quote:"生命是一袭华美的袍，爬满了虱子。"},narrative:{opening:"你觉得表面看起来都好好的，但内心其实在崩溃……",struggle:"1943年的上海，张爱玲23岁，刚刚成名。所有人看到的是天才、是传奇、是倾城之恋的作者。",process:"没人看到的是：她从小被父亲囚禁过，被继母打过，十几岁就学会了不对任何人抱期望。她写华丽的故事，用精致的词句包裹着千疮百孔。",breakthrough:"她没有假装自己被治愈了。她把那些虱子一只一只写进小说里——让读者看到光鲜背后的真实。",legacy:"她教会我们：承认自己破碎不是软弱。用创作容纳破碎，本身就是一种完整。",backToYou:"你不需要假装没事。内心的崩溃不会因为不说就消失。让它被看见。"},emotionVector:[.1,.8,.1,.1,.4,.1],keywords:["崩溃","表面","假装","没事","累","装","坚强","撑不住"]},{id:"s010",her:{name:"居里夫人",year:1903,region:"波兰/法国",quote:"生活中没有什么可怕的东西，只有需要理解的东西。"},narrative:{opening:"你说你很害怕失败，害怕证明他们是对的……",struggle:"1891年，24岁的玛丽从波兰到巴黎求学。她租不起暖气，冬天把所有衣服穿在身上睡觉。",process:"她在实验室工作到凌晨，手上全是放射性灼伤的痕迹。1903年诺贝尔奖最初只写了她丈夫的名字——是丈夫坚持把她的名字加上。",breakthrough:"她成为第一个获得诺贝尔奖的女性，也是唯一获得两个不同领域诺贝尔奖的人。",legacy:"她没有让恐惧阻止她。她把恐惧变成了理解世界的动力。",backToYou:"害怕很正常。但害怕不是停下来的理由——它只是说明你在做一件对你重要的事。"},emotionVector:[.1,.3,.5,.1,.4,.5],keywords:["害怕","失败","证明","不行","恐惧","怕","胆怯","焦虑"]},{id:"s011",her:{name:"奥德丽·洛德",year:1977,region:"美国",quote:"我拒绝在沉默中消失。"},narrative:{opening:"你觉得说出来也没用，不如算了……",struggle:"1977年的美国，一个黑人女同性恋诗人——奥德丽·洛德同时面对三重边缘化。",process:"她选择全部说出来。在乳腺癌确诊后，她写道：「我的沉默没有保护过我。你的沉默也不会保护你。」",breakthrough:"她的诗集和论文成为交叉性女权主义的奠基文本。她证明了沉默从来不是安全的选择。",legacy:"说出来不一定能改变世界，但沉默一定不能。",backToYou:"「算了」保护不了你。说出来可能很难，但至少你的声音存在过。"},emotionVector:[.4,.3,.2,0,.2,.8],keywords:["沉默","算了","说出来","没用","忍","压抑","不说","憋着"]},{id:"s012",her:{name:"米歇尔·奥巴马",year:2018,region:"美国",quote:"每个女孩都应该知道，她值得被尊重。"},narrative:{opening:"你怀疑自己是不是值得更好的……",struggle:"米歇尔在芝加哥南区长大。高中时升学顾问对她说：「你考不上普林斯顿。」",process:"她考上了。在普林斯顿的头一年，她觉得自己不属于那里——所有人看起来都那么自信。",breakthrough:"她后来成了美国第一夫人。她最常对年轻女孩说的话是：「你属于任何你走进的房间。」",legacy:"「值得」不是需要证明的东西。它是你出生时就带着的。",backToYou:"你不需要赚取自己被好好对待的资格。你本来就值得。"},emotionVector:[.1,.3,.6,.3,.3,.3],keywords:["值得","配","够好","自卑","不自信","比不上","差","不够"]},{id:"s013",her:{name:"秋瑾",year:1907,region:"中国",quote:"身不得，男儿列，心却比，男儿烈。"},narrative:{opening:"你说你想做一件大事，但所有人都觉得你不该、你不能……",struggle:"1903年的中国，一个官太太突然要求出国留学。所有人觉得她疯了。",process:"在日本，她学体育、学制造、学革命。回国后办女报、开女校、练兵。她把裹脚布烧了，穿上男装，佩上短剑。",breakthrough:"1907年她起义失败被捕。临刑前写下「秋风秋雨愁煞人」。她32岁，没有后悔。",legacy:"她没有活到革命成功的那天。但她证明了：一个女人可以选择为信念而活，为信念而死。",backToYou:"做大事的第一步，就是无视所有说你「不该」的声音。"},emotionVector:[.4,.2,.3,0,.1,.9],keywords:["大事","不能","不该","疯了","反对","不支持","阻止","质疑"]},{id:"s014",her:{name:"佚名·母亲",year:2020,region:"中国",quote:"母亲的手是温柔的，但也是疲惫的。"},narrative:{opening:"你说你觉得亏欠妈妈太多，又对她有说不出的复杂情绪……",struggle:"这不是某一个人的故事。妈妈用她被教会的方式爱你——那种爱里混着控制、牺牲、期待和恐惧。",process:"她把自己没走过的路铺在你脚下，把自己没实现的梦投射在你身上。她不是不爱你，她只是不知道还有别的方式。",breakthrough:"理解不等于原谅，原谅不等于和解。但当你看到她也是一个受困的女人——不只是你的母亲——你会释放一点点。",legacy:"母亲和女儿之间的痛，不是谁的错。是几代人的困境经由血脉传递。看见它，就是打断它的开始。",backToYou:"你对妈妈的复杂感受是正常的。爱和痛可以同时存在。你不需要选一个。"},emotionVector:[.1,.5,.1,.6,.4,.1],keywords:["妈妈","母亲","亏欠","控制","理解","心疼","复杂","家"]},{id:"s015",her:{name:"你自己",year:2026,region:"此刻",quote:"你来到这里，就已经是一种勇敢了。"},narrative:{opening:"你说你不知道该怎么办……",struggle:"此刻的你，坐在屏幕前。你不确定自己为什么来到这里——也许是好奇，也许是疲惫，也许只是想找个不会评判你的地方待一会儿。",process:"你不需要有明确的问题。你不需要很坚强。你不需要找到答案。你只需要在这里。",breakthrough:"你已经在这里了。",legacy:"洞穴不会要求你做任何事。它只是记得你来过。",backToYou:"你不必成为任何人。这里只是你存在的一个证据。"},emotionVector:[.1,.3,.2,.3,.5,.1],keywords:["不知道","怎么办","迷茫","随便","看看","无所谓","试试"]}];
+const emotionDict={0:['愤怒','恨','不公','压迫','气','怒','不平','歧视','凭什么','不服','不甘','委屈','受够','讨厌'],1:['悲伤','痛','泪','孤独','累','疲惫','无助','绝望','难过','哭','伤心','失望','心碎','寂寞','丧','空'],2:['希望','光','未来','相信','可以','值得','梦想','前进','美好','期待','成长','力量','勇敢','坚强','努力'],3:['爱','温柔','拥抱','母亲','孩子','家','温暖','陪伴','关心','在乎','思念','想念','牵挂','心疼','珍惜'],4:['为什么','不知道','迷茫','困惑','不确定','迷失','矛盾','纠结','怀疑','茫然','意义','选择','犹豫','怎么办'],5:['反抗','不','拒绝','争取','打破','改变','我要','偏要','不服','挑战','自由','独立','站起来','不接受','我偏']};
+const guideWords=[["我很累","为什么总是我","我想自由","没人理解我"],["不公平","我害怕","凭什么","我值得"],["迷茫","温柔","不甘心","我母亲"]];
+
+// ============================================================
+//  STATE
+// ============================================================
+const STORAGE_KEY='echoCave_v8';
+let memory=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null')||{visitCount:0,totalAwakened:0,entries:[]};
+let usedIndices=new Set();
+let currentStory=null;
+let lastInput='';
+let isRecording=false;
+let pendingText='';
+let audioCtx=null;
+let soundEnabled=false;
+
+// ============================================================
+//  RIPPLE ENGINE — THE SOUL OF THE CAVE
+// ============================================================
+const RC=document.getElementById('ripple-canvas');
+const rCtx=RC.getContext('2d');
+let rW,rH;
+function rResize(){rW=RC.width=innerWidth;rH=RC.height=innerHeight;}
+addEventListener('resize',rResize); rResize();
+
+class Ring {
+  constructor(x,y,delay,color){
+    this.x=x; this.y=y;
+    this.radius=0; this.maxRadius=Math.max(rW,rH)*0.8;
+    this.opacity=0.7; this.width=4;
+    this.born=performance.now()+delay;
+    this.alive=true;
+    this.color=color||'232,213,168';
+  }
+  update(now){
+    if(now<this.born){return;}
+    const age=(now-this.born)/1000;
+    this.radius+=2.2+age*0.8;
+    this.opacity=Math.max(0,0.7-age*0.35);
+    this.width=Math.max(0.3,4-age*1.8);
+    if(this.opacity<=0)this.alive=false;
+  }
+  draw(ctx){
+    if(!this.alive||this.opacity<=0||performance.now()<this.born)return;
+    ctx.beginPath();
+    ctx.arc(this.x,this.y,this.radius,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(${this.color},${this.opacity})`;
+    ctx.lineWidth=this.width;
+    ctx.stroke();
+  }
+  hitEdge(){
+    return this.x-this.radius<0||this.x+this.radius>rW||this.y-this.radius<0||this.y+this.radius>rH;
+  }
+}
+
+class RippleEvent {
+  constructor(x,y,color){
+    this.x=x; this.y=y;
+    this.rings=[];
+    this.bounces=0;
+    this.maxBounces=3;
+    this.bouncedPositions=[];
+    this.complete=false;
+    this.completeTime=0;
+    this.color=color||'232,213,168';
+    this.glowAlpha=0;
+    this.glowScale=0;
+    this.glowPulse=0;
+
+    for(let i=0;i<3;i++){
+      this.rings.push(new Ring(x,y,i*600,this.color));
+      setTimeout(()=>haptic('light'),i*600);
+    }
+    if(soundEnabled)setTimeout(()=>playTone(261+Math.random()*100,1.5,'sine',0.02),0);
+  }
+
+  update(now){
+    let allDead=true;
+    for(const r of this.rings){
+      r.update(now);
+      if(r.alive)allDead=false;
+      if(r.alive&&r.hitEdge()&&this.bounces<this.maxBounces){
+        this.bounce(r,now);
+      }
+    }
+    this.rings=this.rings.filter(r=>r.alive);
+
+    if(allDead&&this.rings.length===0&&!this.complete){
+      this.complete=true;
+      this.completeTime=now;
+    }
+
+    if(this.complete){
+      const elapsed=(now-this.completeTime)/1000;
+      this.glowAlpha=Math.min(0.8,elapsed*1.5);
+      this.glowScale=Math.min(1,elapsed*2);
+      this.glowPulse=Math.sin(now*0.004)*0.15+0.85;
+    }
+  }
+
+  bounce(ring,now){
+    this.bounces++;
+    haptic('light');
+    if(soundEnabled)playTone(330+this.bounces*80,1,'sine',0.015);
+
+    let bx=ring.x, by=ring.y;
+    if(ring.x-ring.radius<0) bx=ring.radius*0.3;
+    else if(ring.x+ring.radius>rW) bx=rW-ring.radius*0.3;
+    if(ring.y-ring.radius<0) by=ring.radius*0.3;
+    else if(ring.y+ring.radius>rH) by=rH-ring.radius*0.3;
+
+    this.bouncedPositions.push({x:bx,y:by});
+    const bounceRing=new Ring(bx,by,0,this.color);
+    bounceRing.opacity=ring.opacity*0.45;
+    bounceRing.width=ring.width*0.6;
+    bounceRing.born=now;
+    this.rings.push(bounceRing);
+  }
+
+  draw(ctx,now){
+    for(const r of this.rings) r.draw(ctx);
+
+    if(this.complete){
+      const s=12*this.glowScale*this.glowPulse;
+      const g=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,s*3);
+      g.addColorStop(0,`rgba(${this.color},${this.glowAlpha*0.6})`);
+      g.addColorStop(0.5,`rgba(${this.color},${this.glowAlpha*0.15})`);
+      g.addColorStop(1,'transparent');
+      ctx.fillStyle=g;
+      ctx.fillRect(this.x-s*3,this.y-s*3,s*6,s*6);
+
+      ctx.beginPath();
+      ctx.arc(this.x,this.y,s*0.4,0,Math.PI*2);
+      ctx.fillStyle=`rgba(${this.color},${this.glowAlpha})`;
+      ctx.fill();
+    }
+  }
+
+  isReadyForStory(now){
+    return this.complete&&(now-this.completeTime)>800;
+  }
+}
+
+let activeRipples=[];
+let storyTriggered=false;
+
+function spawnRipple(x,y,color){
+  const r=new RippleEvent(x,y,color);
+  activeRipples.push(r);
+  return r;
+}
+
+// Emotion → ripple color
+function emotionToColor(emotionVec){
+  const maxIdx=emotionVec.indexOf(Math.max(...emotionVec));
+  const colors=['199,91,91','130,140,200','232,213,168','200,170,220','180,180,200','255,180,100'];
+  return colors[maxIdx]||'232,213,168';
+}
+
+// ============================================================
+//  RIPPLE CANVAS INTERACTION — listen on ask screen, draw on canvas
+// ============================================================
+let canTouchRipple=false;
+
+document.getElementById('screen-ask').addEventListener('touchstart',e=>{
+  if(!canTouchRipple)return;
+  if(e.target.closest('.voice-btn')||e.target.closest('.text-input-area')||e.target.closest('.send-btn')||e.target.closest('.guide-word')||e.target.closest('.cave-btn'))return;
+  const t=e.touches[0];
+  handleRippleTouch(t.clientX,t.clientY);
+},{passive:true});
+
+document.getElementById('screen-ask').addEventListener('click',e=>{
+  if(!canTouchRipple)return;
+  if(e.target.closest('.voice-btn')||e.target.closest('.text-input-area')||e.target.closest('.send-btn')||e.target.closest('.guide-word')||e.target.closest('.cave-btn'))return;
+  handleRippleTouch(e.clientX,e.clientY);
+});
+
+function handleRippleTouch(x,y){
+  if(storyTriggered)return;
+
+  const text=pendingText||document.getElementById('text-input').value.trim();
+  if(!text){
+    // Pure decorative ripple
+    spawnRipple(x,y);
+    return;
+  }
+
+  pendingText='';
+  lastInput=text;
+  document.getElementById('text-input').value='';
+
+  const emotionVec=analyzeEmotion(text);
+  const color=emotionToColor(emotionVec);
+  const ripple=spawnRipple(x,y,color);
+
+  storyTriggered=true;
+  haptic('medium');
+  document.getElementById('ripple-hint').classList.remove('visible');
+
+  const idx=findMatch(text);
+  if(idx<0){storyTriggered=false;return;}
+  usedIndices.add(idx);
+  currentStory=stories[idx];
+
+  memory.totalAwakened++;
+  memory.entries.push({input:text,story:currentStory.her.name,quote:currentStory.her.quote,backToYou:currentStory.narrative.backToYou,time:new Date().toISOString()});
+  saveMemory();
+  document.getElementById('awaken-count').textContent=memory.totalAwakened;
+
+  const checkReady=()=>{
+    if(ripple.isReadyForStory(performance.now())){
+      emergeStory(ripple.x,ripple.y,currentStory);
+    } else {
+      requestAnimationFrame(checkReady);
+    }
+  };
+  checkReady();
+}
+
+// ============================================================
+//  RIPPLE RENDER LOOP
+// ============================================================
+function renderRipples(){
+  rCtx.clearRect(0,0,rW,rH);
+  const now=performance.now();
+  for(const r of activeRipples) r.update(now);
+  for(const r of activeRipples) r.draw(rCtx,now);
+  activeRipples=activeRipples.filter(r=>!r.complete||!r.isReadyForStory(now)||storyTriggered);
+  requestAnimationFrame(renderRipples);
+}
+renderRipples();
+
+// ============================================================
+//  STORY EMERGENCE — from ripple center
+// ============================================================
+function emergeStory(x,y,story){
+  haptic('story');
+  if(soundEnabled)playStoryReveal();
+
+  const emergence=document.getElementById('story-emergence');
+  const glow=document.getElementById('emergence-glow');
+  const card=document.getElementById('emergence-card');
+
+  glow.style.left=x+'px';
+  glow.style.top=y+'px';
+  glow.style.animation='none';
+  void glow.offsetWidth;
+  glow.style.animation='glowBirth 1s cubic-bezier(.34,1.56,.64,1) forwards';
+
+  emergence.classList.add('active');
+
+  setTimeout(()=>{
+    card.classList.add('bloom');
+    haptic('confirm');
+  },900);
+
+  document.getElementById('story-quote').textContent=`「${story.her.quote}」`;
+  document.getElementById('story-author').textContent=`—— ${story.her.name}，${story.her.year}年，${story.her.region}`;
+
+  const narrative=document.getElementById('story-narrative');
+  narrative.innerHTML='';
+  const parts=[story.narrative.opening,story.narrative.struggle,story.narrative.process,story.narrative.breakthrough,story.narrative.legacy];
+  parts.forEach((t,i)=>{
+    const p=document.createElement('p');
+    p.textContent=t;
+    narrative.appendChild(p);
+    setTimeout(()=>{p.classList.add('visible');if(soundEnabled)playTone(220+i*50,1.5,'sine',0.01);},1400+i*900);
+  });
+
+  const bty=document.getElementById('story-back-to-you');
+  bty.textContent=story.narrative.backToYou;
+  bty.classList.remove('visible');
+  setTimeout(()=>{bty.classList.add('visible');haptic('heavy');if(soundEnabled)playTone(523,2,'sine',0.02);},1400+parts.length*900+500);
+}
+
+function dismissStory(){
+  haptic('light');
+  const emergence=document.getElementById('story-emergence');
+  const card=document.getElementById('emergence-card');
+  card.classList.remove('bloom');
+  setTimeout(()=>{
+    emergence.classList.remove('active');
+    storyTriggered=false;
+    activeRipples=[];
+    showGuide();
+  },400);
+}
+
+// ============================================================
+//  HAPTIC
+// ============================================================
+function haptic(type){
+  if(!navigator.vibrate)return;
+  switch(type){
+    case'light':navigator.vibrate(10);break;
+    case'medium':navigator.vibrate(25);break;
+    case'heavy':navigator.vibrate(50);break;
+    case'confirm':navigator.vibrate([15,50,15]);break;
+    case'story':navigator.vibrate([10,30,10,30,40]);break;
+  }
+}
+
+// ============================================================
+//  AUDIO
+// ============================================================
+function initAudio(){if(audioCtx)return;audioCtx=new(window.AudioContext||window.webkitAudioContext)();}
+function playTone(freq,dur,type='sine',vol=0.03){
+  if(!soundEnabled||!audioCtx)return;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type=type;o.frequency.setValueAtTime(freq,audioCtx.currentTime);
+  g.gain.setValueAtTime(0,audioCtx.currentTime);
+  g.gain.linearRampToValueAtTime(vol,audioCtx.currentTime+0.1);
+  g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+dur);
+  o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+dur);
+}
+function playStoryReveal(){playTone(196,3,'sine',0.025);setTimeout(()=>playTone(262,2.5,'sine',0.02),500);setTimeout(()=>playTone(330,2,'sine',0.015),1000);}
+function toggleSound(){initAudio();soundEnabled=!soundEnabled;document.getElementById('sound-toggle').classList.toggle('active',soundEnabled);if(soundEnabled)playTone(440,0.5,'sine',0.03);}
+
+// ============================================================
+//  SCREENS
+// ============================================================
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+
+// INTRO
+setTimeout(()=>document.getElementById('l1').classList.add('visible'),800);
+setTimeout(()=>document.getElementById('l2').classList.add('visible'),2200);
+setTimeout(()=>document.getElementById('l3').classList.add('visible'),3600);
+setTimeout(()=>document.getElementById('l4').classList.add('visible'),5000);
+setTimeout(()=>document.getElementById('enter-btn').classList.add('visible'),6200);
+
+function enterCave(){
+  haptic('confirm');initAudio();
+  if(soundEnabled){const notes=[261,329,392,523];notes.forEach((n,i)=>setTimeout(()=>playTone(n,2+i*0.5,'sine',0.02),i*400));}
+  memory.visitCount++;saveMemory();
+  showScreen('screen-ask');
+  canTouchRipple=true;
+  showGuide();
+  setTimeout(()=>document.getElementById('ripple-hint').classList.add('visible'),800);
+  setTimeout(()=>document.getElementById('ripple-hint').classList.remove('visible'),6000);
+}
+
+// ============================================================
+//  VOICE INPUT
+// ============================================================
+let recognition=null;
+if('webkitSpeechRecognition' in window||'SpeechRecognition' in window){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  recognition=new SR();recognition.lang='zh-CN';recognition.continuous=false;recognition.interimResults=true;
+  recognition.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;document.getElementById('text-input').value=t;};
+  recognition.onend=()=>{if(isRecording)stopVoiceInternal();};
+}
+function startVoice(e){e.preventDefault();isRecording=true;haptic('light');document.getElementById('voice-btn').classList.add('recording');document.getElementById('voice-text').textContent='松开发送';document.getElementById('voice-hint').textContent='她在听...';document.getElementById('waveform').style.display='flex';animateWaveform();if(recognition)recognition.start();}
+function stopVoice(e){e.preventDefault();stopVoiceInternal();}
+function stopVoiceInternal(){isRecording=false;haptic('confirm');document.getElementById('voice-btn').classList.remove('recording');document.getElementById('voice-text').textContent='按住说话';document.getElementById('voice-hint').textContent='拇指按住，开口问她';document.getElementById('waveform').style.display='none';if(recognition)try{recognition.stop();}catch(e){}
+  const text=document.getElementById('text-input').value.trim();
+  if(text){pendingText=text;document.getElementById('text-input').value='';setTimeout(()=>{handleRippleTouch(rW/2+Math.random()*60-30,rH*0.4+Math.random()*60-30);},500);}
+}
+let waveInterval=null;
+function animateWaveform(){const bars=document.querySelectorAll('.wave-bar');waveInterval=setInterval(()=>{if(!isRecording){clearInterval(waveInterval);return;}bars.forEach(b=>{b.style.height=(5+Math.random()*32)+'px';});},80);}
+
+// ============================================================
+//  TEXT SEND — option A: touch to trigger, option B: auto-trigger from center
+// ============================================================
+function sendText(){
+  const input=document.getElementById('text-input');
+  const text=input.value.trim();
+  if(!text)return;
+  pendingText=text;
+  input.value='';
+  haptic('light');
+  // Auto-trigger ripple from screen center after brief delay
+  setTimeout(()=>{
+    handleRippleTouch(rW/2+Math.random()*60-30, rH*0.4+Math.random()*60-30);
+  },300);
+}
+
+// ============================================================
+//  EMOTION ANALYSIS + MATCHING
+// ============================================================
+function analyzeEmotion(text){const v=[0,0,0,0,0,0];for(let d=0;d<6;d++)for(const w of emotionDict[d])if(text.includes(w))v[d]++;const max=Math.max(...v,1);const n=v.map(x=>x/max);if(n.every(x=>x===0)){if(text.includes('？')||text.includes('?'))n[4]=0.7;else n[4]=0.4;}return n;}
+function cosineSim(a,b){let dot=0,ma=0,mb=0;for(let i=0;i<a.length;i++){dot+=a[i]*b[i];ma+=a[i]*a[i];mb+=b[i]*b[i];}return(ma&&mb)?dot/(Math.sqrt(ma)*Math.sqrt(mb)):0;}
+function findMatch(text){const vector=analyzeEmotion(text);let best=-1,bestIdx=-1;for(let i=0;i<stories.length;i++){if(usedIndices.has(i))continue;const s=stories[i];let kw=0;for(const k of s.keywords)if(text.includes(k))kw+=0.3;kw=Math.min(kw,1);const score=kw*0.4+cosineSim(vector,s.emotionVector)*0.6;if(score>best){best=score;bestIdx=i;}}if(bestIdx<0){const unused=[];for(let i=0;i<stories.length;i++)if(!usedIndices.has(i))unused.push(i);if(unused.length)bestIdx=unused[Math.floor(Math.random()*unused.length)];}return bestIdx;}
+
+// ============================================================
+//  GUIDE WORDS
+// ============================================================
+function showGuide(){const set=guideWords[Math.floor(Math.random()*guideWords.length)];document.getElementById('guide-words').innerHTML=set.map(w=>`<span class="guide-word" onclick="useGuide('${w}')">${w}</span>`).join('');}
+function useGuide(w){pendingText=w;haptic('light');setTimeout(()=>{handleRippleTouch(rW/2+Math.random()*80-40,rH*0.4+Math.random()*80-40);},200);}
+
+// ============================================================
+//  CAVE (Memory)
+// ============================================================
+function showCave(){haptic('light');canTouchRipple=false;showScreen('screen-cave');const stats=document.getElementById('cave-stats');stats.innerHTML=`<div class="cave-stat"><div class="num">${memory.entries.length}</div><div class="label">次诉说</div></div><div class="cave-stat"><div class="num">${memory.totalAwakened}</div><div class="label">个唤醒</div></div><div class="cave-stat"><div class="num">${memory.visitCount}</div><div class="label">次到访</div></div>`;const entries=document.getElementById('cave-entries');if(!memory.entries.length){entries.innerHTML='<div style="text-align:center;color:rgba(232,213,168,.25);padding:40px;font-size:14px;">还没有诉说。去问她吧。</div>';return;}let html='<div class="cave-section"><h3>你曾说过</h3>';memory.entries.slice(-10).reverse().forEach(e=>{html+=`<div class="cave-entry"><div class="input">「${e.input}」</div><div class="response">${e.story}：${e.backToYou}</div><div class="time">${new Date(e.time).toLocaleDateString('zh-CN')}</div></div>`;});entries.innerHTML=html+'</div>';}
+function hideCave(){haptic('light');canTouchRipple=true;showScreen('screen-ask');}
+
+// ============================================================
+//  POSTER
+// ============================================================
+function generatePoster(){
+  if(!currentStory)return;haptic('heavy');
+  const canvas=document.getElementById('poster-canvas'),ctx=canvas.getContext('2d'),W=540,H=960;canvas.width=W;canvas.height=H;
+  ctx.fillStyle='#f5f0eb';ctx.fillRect(0,0,W,H);
+  for(let i=0;i<3000;i++){ctx.fillStyle=`rgba(0,0,0,${Math.random()*0.015})`;ctx.fillRect(Math.random()*W,Math.random()*H,1,1);}
+  const grd=ctx.createLinearGradient(0,0,W,0);grd.addColorStop(0,'transparent');grd.addColorStop(0.3,'rgba(200,180,150,0.4)');grd.addColorStop(0.5,'rgba(232,213,168,0.6)');grd.addColorStop(0.7,'rgba(200,180,150,0.4)');grd.addColorStop(1,'transparent');ctx.strokeStyle=grd;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,40);ctx.lineTo(W,40);ctx.stroke();ctx.beginPath();ctx.moveTo(0,H-40);ctx.lineTo(W,H-40);ctx.stroke();
+  ctx.font='600 30px "Noto Serif SC",serif';ctx.fillStyle='#2d2d2d';ctx.textAlign='center';ctx.fillText('回声洞穴',W/2,85);
+  ctx.font='300 11px "Noto Sans SC",sans-serif';ctx.fillStyle='#aaa';ctx.fillText('ECHO CAVE',W/2,105);
+  ctx.font='300 14px "LXGW WenKai",serif';ctx.fillStyle='#888';ctx.fillText('我说：',W/2,160);
+  ctx.font='400 17px "LXGW WenKai",serif';ctx.fillStyle='#3d3d3d';wrapText(ctx,`「${lastInput}」`,W/2,195,W-100,26);
+  ctx.fillStyle='rgba(232,213,168,0.5)';ctx.beginPath();ctx.arc(W/2,270,3,0,Math.PI*2);ctx.fill();
+  ctx.font='600 22px "Noto Serif SC",serif';ctx.fillStyle='#2d2d2d';ctx.fillText(`${currentStory.her.name}，${currentStory.her.year}年`,W/2,320);
+  ctx.font='400 20px "LXGW WenKai",serif';ctx.fillStyle='#c75b5b';wrapText(ctx,`「${currentStory.her.quote}」`,W/2,370,W-100,30);
+  ctx.font='400 14px "LXGW WenKai",serif';ctx.fillStyle='#666';wrapText(ctx,currentStory.narrative.backToYou,W/2,520,W-120,22);
+  ctx.fillStyle='rgba(232,213,168,0.5)';ctx.beginPath();ctx.arc(W/2,H-100,3,0,Math.PI*2);ctx.fill();
+  ctx.font='300 12px "Noto Sans SC",sans-serif';ctx.fillStyle='#999';ctx.fillText('打开回声洞穴，问她',W/2,H-68);
+  ctx.font='300 10px "Noto Sans SC",sans-serif';ctx.fillStyle='#bbb';ctx.fillText('#回声洞穴 #女性故事 #'+currentStory.her.name,W/2,H-50);
+  document.getElementById('poster-img').src=canvas.toDataURL('image/png');document.getElementById('poster-overlay').classList.add('active');
+}
+function wrapText(ctx,text,x,y,maxW,lineH){let line='',cy=y;for(const ch of text.split('')){const test=line+ch;if(ctx.measureText(test).width>maxW){ctx.fillText(line,x,cy);line=ch;cy+=lineH;}else{line=test;}}ctx.fillText(line,x,cy);}
+function savePoster(){const link=document.createElement('a');link.download=`回声洞穴-${currentStory.her.name}.png`;link.href=document.getElementById('poster-canvas').toDataURL();link.click();haptic('confirm');}
+function closePoster(){document.getElementById('poster-overlay').classList.remove('active');}
+
+// ============================================================
+//  MEMORY
+// ============================================================
+function saveMemory(){localStorage.setItem(STORAGE_KEY,JSON.stringify(memory));}
+
+// ============================================================
+//  GOLD PARTICLE SYSTEM
+// ============================================================
+const pC=document.getElementById('particles'),pCtx=pC.getContext('2d');let pW,pH;
+function pR(){pW=pC.width=innerWidth;pH=pC.height=innerHeight;}addEventListener('resize',pR);pR();
+class Pt{constructor(){this.reset();}reset(){this.x=Math.random()*pW;this.y=Math.random()*pH;this.size=1+Math.random()*2.5;this.sx=(Math.random()-.5)*.15;this.sy=-.05-Math.random()*.15;this.op=0;this.mop=.1+Math.random()*.25;this.fi=true;this.life=300+Math.random()*500;this.age=0;this.fs=.02+Math.random()*.03;this.fo=Math.random()*Math.PI*2;}update(){this.x+=this.sx;this.y+=this.sy;this.age++;if(this.fi){this.op+=.003;if(this.op>=this.mop)this.fi=false;}if(this.age>this.life*.7)this.op-=.002;this.op=Math.max(0,this.op);if(this.age>this.life||this.op<=0)this.reset();}draw(){const f=Math.sin(this.age*this.fs+this.fo)*.3+.7;const a=this.op*f;const g=pCtx.createRadialGradient(this.x,this.y,0,this.x,this.y,this.size*4);g.addColorStop(0,`rgba(255,223,120,${a})`);g.addColorStop(.4,`rgba(232,213,168,${a*.4})`);g.addColorStop(1,'transparent');pCtx.fillStyle=g;pCtx.fillRect(this.x-this.size*4,this.y-this.size*4,this.size*8,this.size*8);}}
+const pts=Array.from({length:Math.min(70,Math.floor(innerWidth/9))},()=>new Pt());
+function rP(){pCtx.clearRect(0,0,pW,pH);pCtx.globalCompositeOperation='lighter';for(const p of pts){p.update();p.draw();}pCtx.globalCompositeOperation='source-over';requestAnimationFrame(rP);}rP();
+
+// INIT
+document.getElementById('awaken-count').textContent=memory.totalAwakened;
+</script>
+</body>
+</html>
