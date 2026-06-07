@@ -558,15 +558,27 @@ function pickEmotion(el){
 // ============================================================
 //  VOICE
 // ============================================================
+const isWeChat=/MicroMessenger/i.test(navigator.userAgent);
 let recognition=null;
-if('webkitSpeechRecognition' in window||'SpeechRecognition' in window){
+if(!isWeChat&&('webkitSpeechRecognition' in window||'SpeechRecognition' in window)){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   recognition=new SR();recognition.lang='zh-CN';recognition.continuous=false;recognition.interimResults=true;
   recognition.onresult=e=>{let t='';for(let i=0;i<e.results.length;i++)t+=e.results[i][0].transcript;document.getElementById('text-input').value=t;};
   recognition.onend=()=>{if(isRec)stopVoiceInt();};
 }
-function startVoice(e){e.preventDefault();isRec=true;haptic('light');document.getElementById('voice-btn').classList.add('recording');document.getElementById('voice-icon').textContent='🔴';document.getElementById('voice-hint').textContent='她在听……松开发送';if(recognition)recognition.start();}
-function stopVoice(e){e.preventDefault();stopVoiceInt();}
+// 微信环境：隐藏语音按钮，提示用键盘语音输入
+if(isWeChat){
+  document.addEventListener('DOMContentLoaded',()=>{
+    const vArea=document.querySelector('.ask-voice-area');
+    if(vArea)vArea.innerHTML='<div style="text-align:center;padding:16px 0;"><div style="font-size:36px;margin-bottom:8px;">⌨️</div><div style="font-size:13px;color:var(--text-sub);font-family:var(--font-wen);line-height:1.8;">微信内请使用键盘语音输入<br><span style="font-size:11px;color:var(--text-light);">点击输入框 → 长按键盘🎙️图标</span></div></div>';
+  });
+}
+function startVoice(e){
+  e.preventDefault();
+  if(isWeChat){document.getElementById('text-input').focus();return;}
+  isRec=true;haptic('light');document.getElementById('voice-btn').classList.add('recording');document.getElementById('voice-icon').textContent='🔴';document.getElementById('voice-hint').textContent='她在听……松开发送';if(recognition)recognition.start();
+}
+function stopVoice(e){e.preventDefault();if(isWeChat)return;stopVoiceInt();}
 function stopVoiceInt(){isRec=false;haptic('confirm');document.getElementById('voice-btn').classList.remove('recording');document.getElementById('voice-icon').textContent='🎙️';document.getElementById('voice-hint').textContent='按住说话，让她听见';if(recognition)try{recognition.stop();}catch(e){}
   const t=document.getElementById('text-input').value.trim();if(t)setTimeout(()=>sendText(),300);
 }
